@@ -5,19 +5,27 @@ This project is a MNIST classifier using CUDA and C++ to code an MLP from scratc
 In its tests it uses the torch C++ API to assure correct implementation. It achieves ~97% on MNIST dataset.
 
 Attention: This not yet in a clean version, but it is working. It is not optimized at all. 
+Tested with NVIDIA RTX 4090.
 
 ## Dependencies
 
 - CMake (version >= 3.22)
-- CUDA Toolkit (version >= 12.0)
+- CUDA Toolkit (version >= 12.0) 
 - PyTorch (libtorch)
 - Google Test (release-1.10.0)
 
+[It](It) might also work with a lower version of CUDA, but that is the only one I have tested.
 ## Installation
 
+Open a terminal and navigate to the directory where you want your project clone to.
+
+```bash
+git clone https://github.com/MrNeRF/MNIST_CUDA
+cd MNIST_CUDA
+```
 ### libtorch
 
-First, download the libtorch library using the following command:
+Download the libtorch library using the following command:
 
 ```bash
 wget https://download.pytorch.org/libtorch/nightly/cpu/libtorch-shared-with-deps-latest.zip
@@ -27,6 +35,7 @@ This will download a zip file named `libtorch-shared-with-deps-latest.zip`. To e
 
 ```bash
 unzip libtorch-shared-with-deps-latest.zip -d external/
+rm libtorch-shared-with-deps-latest.zip
 ```
 
 This will create a folder named `libtorch` in the `external` directory of your project.
@@ -36,6 +45,8 @@ This will create a folder named `libtorch` in the `external` directory of your p
 The MNIST data can be downloaded using the following command:
 
 ```bash
+mdir data
+cd data
 wget http://yann.lecun.com/exdb/mnist/train-images-idx3-ubyte.gz
 wget http://yann.lecun.com/exdb/mnist/train-labels-idx1-ubyte.gz
 wget http://yann.lecun.com/exdb/mnist/t10k-images-idx3-ubyte.gz
@@ -49,41 +60,45 @@ gunzip train-images-idx3-ubyte.gz
 gunzip train-labels-idx1-ubyte.gz
 gunzip t10k-images-idx3-ubyte.gz
 gunzip t10k-labels-idx1-ubyte.gz
+cd ..
 ```
 
-Then, move the extracted files into the `data` directory of your project.
 
 ## Building the Project
 
 To build the project, follow these steps:
-
-1. Open a terminal and navigate to the project's root directory.
-2. Create a new directory named `build` and navigate into it:
+1. Create a new directory named `build` and navigate into it:
 
     ```bash
     mkdir build && cd build
     ```
 
-3. Run the CMake configuration:
+2. Run the CMake configuration:
 
     ```bash
     cmake -DCMAKE_BUILD_TYPE=Release ..
     ```
+	If you have problems to configure the build, you might look up the graphics card architecture you are using.
+	Then replace CUDA_ARCHITECTURE 89 with the number of your architecture.
 
-4. Finally, compile the project:
+3. Finally, compile the project:
 
     ```bash
     make -j$(nproc)
+    cd ..
     ```
 
 This will create an executable named `mnist_cuda` in the `build` directory.
-    ```bash
-    ./build/mnist_cuda data
-    ```
+
+Run it:
+```bash
+./build/mnist_cuda data
+```
 
 ## Running the Tests
 
 After building the project, you can run the tests with the following command:
-    ```bash
-    ./build/cuda_kernel_tests
-    ```
+
+```bash
+./build/cuda_kernel_tests
+```
