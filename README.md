@@ -14,10 +14,11 @@ Tested with NVIDIA RTX 4090.
 - PyTorch (libtorch)
 - Google Test (release-1.10.0)
 
-[It](It) might also work with a lower version of CUDA, but that is the only one I have tested.
+It might also work with a lower version of CUDA, but that is the only one I have tested.
+CMake version might be also considerable lower. Just test it.
 ## Installation
 
-Open a terminal and navigate to the directory where you want your project clone to.
+Open a terminal and navigate to the directory where you want the project to clone.
 
 ```bash
 git clone https://github.com/MrNeRF/MNIST_CUDA
