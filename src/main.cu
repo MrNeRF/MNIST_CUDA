@@ -1,5 +1,8 @@
+#include "activation.cuh"
+#include "linear_layer.cuh"
 #include "load_mnist.cuh"
 #include "mlp.cuh"
+#include "neural_network.cuh"
 #include <algorithm>
 #include <iomanip>
 #include <iostream>
@@ -32,6 +35,28 @@ void Predict(const DenseLayer& layer1, const DenseLayer& layer2, const DenseLaye
     cudaFree(d_output3);
     cudaFree(d_softmax_output);
 }
+
+struct MNIST_NN : public NeuralNetwork {
+    MNIST_NN() {
+        fc1 = std::make_unique<LinearLayer>(784, 50);
+        fc2 = std::make_unique<LinearLayer>(50, 50);
+        fc3 = std::make_unique<LinearLayer>(50, 10);
+    }
+
+    float* Forward(const float* d_input) override {
+        float* output = fc1->Forward(d_input);
+        output = fc2->Forward(output);
+        output = fc3->Forward(output);
+        return output;
+    }
+
+    float* Predict(const float* d_input) override {
+        return nullptr;
+    }
+
+    int _batch_size = 64;
+    std::unique_ptr<LinearLayer> _fc1, _fc2, _fc3;
+};
 
 int main(int argc, char** argv) {
     if (argc != 2) {

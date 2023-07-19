@@ -173,11 +173,11 @@ void ForwardPropagation(const DenseLayer& layer, const float* input, float* outp
     //            d_biases, 1,
     //            d_ones, 1,
     //            output, batchSize);
+    // if (status != CUBLAS_STATUS_SUCCESS) {
+    //     std::cerr << "Failed to create cuBLAS handle." << std::endl;
+    //     std::exit(EXIT_FAILURE);
+    // }
     addBias<<<(batchSize * layer.outputSize + 255) / 256, 256>>>(output, layer.biases, batchSize, layer.outputSize);
-    if (status != CUBLAS_STATUS_SUCCESS) {
-        std::cerr << "Failed to create cuBLAS handle." << std::endl;
-        std::exit(EXIT_FAILURE);
-    }
 
     CHECK_LAST_CUDA_ERROR();
 

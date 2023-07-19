@@ -31,11 +31,17 @@ set(HEADERS
     includes/load_mnist.cuh
     includes/mlp.cuh
     includes/stb_image_write.h
+    includes/linear_layer.cuh
+    includes/neural_network.cuh
+    includes/layer.cuh
+    includes/activation.cuh
 )
 
 set(SOURCES
     src/main.cu    
     src/load_mnist.cu
+    src/linear_layer.cu
+    src/activation.cu
 )
 
 add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
