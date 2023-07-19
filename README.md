@@ -84,7 +84,6 @@ This will create an executable named `mnist_cuda` in the `build` directory.
 ## Running the Tests
 
 After building the project, you can run the tests with the following command:
-
     ```bash
     ./build/cuda_kernel_tests
     ```
