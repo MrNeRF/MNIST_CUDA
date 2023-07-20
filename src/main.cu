@@ -1,6 +1,7 @@
 #include "activation.cuh"
 #include "linear_layer.cuh"
 #include "load_mnist.cuh"
+#include "loss.cuh"
 #include "mlp.cuh"
 #include "neural_network.cuh"
 #include <algorithm>
@@ -48,15 +49,13 @@ struct MNIST_NN : public NeuralNetwork {
         output = _fc1->Forward(d_input, std::make_unique<ReLU>());
         output = _fc2->Forward(output, std::make_unique<ReLU>());
         output = _fc3->Forward(output, std::make_unique<LogSoftMax>());
-        return output;
+        return CrossEntropyLoss(output, d_labels, _batch_size, _fc->GetOutputSize());
     }
 
     float* Backward(const float* d_output) override {
         return nullptr;
     };
-    void Update(const float learning_rate) override {
-        return nullptr;
-    };
+    void Update(const float learning_rate) override{};
     float* Predict(const float* d_input) override {
         return nullptr;
     }

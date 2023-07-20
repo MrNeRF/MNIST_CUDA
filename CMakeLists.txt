@@ -43,6 +43,7 @@ set(SOURCES
     src/load_mnist.cu
     src/linear_layer.cu
     src/activation.cu
+    src/loss.cu
 )
 
 add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
