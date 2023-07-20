@@ -2,15 +2,19 @@
 
 struct Activation {
     ~Activation();
-    virtual void operator()(float* d_output) = 0;
+    virtual void operator()(const int batch_size,
+                            const int output_size,
+                            float* d_value) = 0;
 };
 
 struct ReLU : public Activation {
-    ReLU(const int batch_size,
-         const int output_size);
-    void operator()(float* d_output);
+    void operator()(const int batch_size,
+                    const int output_size,
+                    float* d_value);
+};
 
-private:
-    const int _batch_size;
-    const int _output_size;
+struct LogSoftMax : public Activation {
+    void operator()(const int batch_size,
+                    const int output_size,
+                    float* d_value);
 };

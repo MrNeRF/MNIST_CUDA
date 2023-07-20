@@ -94,6 +94,7 @@ __global__ void LogSoftmaxBatch(const float* input, float* output, const int out
     // if we get to big numbers, we can get inf or nan
     // That's why we subtract the max from each element
     // This is called the log-sum-exp trick and is used to avoid overflow
+
     float maxInput = -INFINITY;
     for (int j = 0; j < outputSize; ++j) {
         maxInput = fmaxf(maxInput, input[idx * outputSize + j]);
@@ -110,13 +111,6 @@ __global__ void LogSoftmaxBatch(const float* input, float* output, const int out
     for (int j = 0; j < outputSize; ++j) {
         float softmax = expf(input[idx * outputSize + j] - maxInput) / sum;
         output[idx * outputSize + j] = logf(softmax + 1e-8f);
-    }
-}
-
-__global__ void ReLU(float* input, int size) {
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < size) {
-        input[idx] = fmaxf(0, input[idx]);
     }
 }
 

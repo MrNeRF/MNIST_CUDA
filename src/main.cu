@@ -37,19 +37,26 @@ void Predict(const DenseLayer& layer1, const DenseLayer& layer2, const DenseLaye
 }
 
 struct MNIST_NN : public NeuralNetwork {
-    MNIST_NN() {
-        fc1 = std::make_unique<LinearLayer>(784, 50);
-        fc2 = std::make_unique<LinearLayer>(50, 50);
-        fc3 = std::make_unique<LinearLayer>(50, 10);
+    MNIST_NN(const int batch_size) : _batch_size(batch_size) {
+        _fc1 = std::make_unique<LinearLayer>(batch_size, 784, 50);
+        _fc2 = std::make_unique<LinearLayer>(batch_size, 50, 50);
+        _fc3 = std::make_unique<LinearLayer>(batch_size, 50, 10);
     }
 
-    float* Forward(const float* d_input) override {
-        float* output = fc1->Forward(d_input);
-        output = fc2->Forward(output);
-        output = fc3->Forward(output);
+    float Forward(const float* d_input, const int* d_labels) override {
+        float* output = nullptr;
+        output = _fc1->Forward(d_input, std::make_unique<ReLU>());
+        output = _fc2->Forward(output, std::make_unique<ReLU>());
+        output = _fc3->Forward(output, std::make_unique<LogSoftMax>());
         return output;
     }
 
+    float* Backward(const float* d_output) override {
+        return nullptr;
+    };
+    void Update(const float learning_rate) override {
+        return nullptr;
+    };
     float* Predict(const float* d_input) override {
         return nullptr;
     }

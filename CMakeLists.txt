@@ -35,6 +35,7 @@ set(HEADERS
     includes/neural_network.cuh
     includes/layer.cuh
     includes/activation.cuh
+    includes/loss.cuh
 )
 
 set(SOURCES

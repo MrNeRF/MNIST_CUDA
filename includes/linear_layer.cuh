@@ -2,21 +2,28 @@
 
 #include "layer.cuh"
 #include <cstdint>
+#include <vector>
 
 class LinearLayer : public Layer {
 public:
-    LinearLayer(uint32_t input_size, uint32_t output_size);
+    LinearLayer(int batch_size, int input_size, int output_size);
     ~LinearLayer();
-    uint32_t GetInputSize() const { return _h_input_size; }
-    uint32_t GetOutputSize() const { return _h_output_size; }
-    float* Forward(const float* d_input) override;
+    int GetInputSize() const override { return _h_input_size; }
+    int GetOutputSize() const override { return _h_output_size; }
+    float* GetWeightsGPU() override { return _d_weights; }
+    float* GetBiasGPU() override { return _d_bias; }
+    float* GetOutputGPU() override { return _d_output; }
+
+    std::vector<float> GetWeightsCPU() const override;
+    std::vector<float> GetBiasCPU() const override;
+    std::vector<float> GetOutputCPU() const override;
+
+    float* Forward(const float* d_input, std::unique_ptr<Activation> activation) override;
 
 private:
-    void initWeightsAndBias();
-
-private:
-    uint32_t _h_input_size;
-    uint32_t _h_output_size;
+    int _h_batch_size;
+    int _h_input_size;
+    int _h_output_size;
     float* _d_weights;
     float* _d_bias;
     float* _d_output;

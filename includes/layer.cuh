@@ -6,15 +6,15 @@
 
 class Layer {
 public:
-    Layer(const std::string& name) : _name(name) {}
-    const std::string& GetName() const { return _name; }
     virtual ~Layer() = default;
     virtual float* Forward(const float* d_input, std::unique_ptr<Activation> activation) = 0;
 
-protected:
-    // virtual void Backward() = 0;
-    // virtual void Update() = 0;
-
-private:
-    std::string _name;
+    virtual int GetInputSize() const = 0;
+    virtual int GetOutputSize() const = 0;
+    virtual float* GetWeightsGPU() = 0;
+    virtual float* GetBiasGPU() = 0;
+    virtual float* GetOutputGPU() = 0;
+    virtual std::vector<float> GetWeightsCPU() const = 0;
+    virtual std::vector<float> GetBiasCPU() const = 0;
+    virtual std::vector<float> GetOutputCPU() const = 0;
 };
