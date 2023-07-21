@@ -44,7 +44,7 @@ int main(int argc, char** argv) {
 
     auto rng = std::default_random_engine{};
 
-    MNIST_NN model(batchSize);
+    Simple_GPU_NN model(batchSize);
 
     for (int epoch = 0; epoch < num_epochs; ++epoch) {
         std::cout << "Epoch: " << (epoch + 1) << std::endl;

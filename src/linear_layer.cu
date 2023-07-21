@@ -153,6 +153,26 @@ void initWeightsAndBias(float* d_weights, float* d_bias, int input_size, int out
     CHECK_CUDA_ERROR(cudaMemcpy(d_bias, biases.data(), output_size * sizeof(float), cudaMemcpyHostToDevice));
 }
 
+void LinearLayer::SetWeightsFromCPU(const float* weights) {
+    CHECK_CUDA_ERROR(cudaMemcpy(_d_weights, weights, _h_output_size * _h_input_size * sizeof(float), cudaMemcpyHostToDevice));
+}
+
+void LinearLayer::SetBiasFromCPU(const float* bias) {
+    CHECK_CUDA_ERROR(cudaMemcpy(_d_bias, bias, _h_output_size * sizeof(float), cudaMemcpyHostToDevice));
+}
+
+std::vector<float> LinearLayer::GetWeightGradientsCPU() const {
+    std::vector<float> dW(_h_input_size * _h_output_size);
+    CHECK_CUDA_ERROR(cudaMemcpy(dW.data(), _d_dW, dW.size() * sizeof(float), cudaMemcpyDeviceToHost));
+    return dW;
+}
+
+std::vector<float> LinearLayer::GetBiasGradientsCPU() const {
+    std::vector<float> dB(_h_output_size);
+    CHECK_CUDA_ERROR(cudaMemcpy(dB.data(), _d_dB, dB.size() * sizeof(float), cudaMemcpyDeviceToHost));
+    return dB;
+}
+
 __global__ void AddBiasKernel(const float* biases,
                               const int rows,
                               const int cols,

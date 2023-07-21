@@ -16,6 +16,8 @@ public:
     virtual float* GetWeightsGPU() = 0;
     virtual float* GetBiasGPU() = 0;
     virtual float* GetOutputGPU() = 0;
+    virtual std::vector<float> GetWeightGradientsCPU() const = 0;
+    virtual std::vector<float> GetBiasGradientsCPU() const = 0;
     virtual std::vector<float> GetWeightsCPU() const = 0;
     virtual std::vector<float> GetBiasCPU() const = 0;
     virtual std::vector<float> GetOutputCPU() const = 0;
