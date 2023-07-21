@@ -27,22 +27,22 @@ void initWeightsAndBias(float* d_weights, float* d_bias, int input_size, int out
 LinearLayer::LinearLayer(int batch_size, int input_size, int output_size) : _h_batch_size(batch_size),
                                                                             _h_input_size(input_size),
                                                                             _h_output_size(output_size) {
-    cudaMalloc(&_d_weights, sizeof(float) * _h_input_size * _h_output_size);
-    cudaMalloc(&_d_bias, sizeof(float) * _h_output_size);
-    cudaMalloc(&_d_output, sizeof(float) * _h_output_size * _h_batch_size);
-    cudaMalloc(&_d_dZ, sizeof(float) * _h_output_size * _h_batch_size);
-    cudaMalloc(&_d_dW, sizeof(float) * _h_input_size * _h_output_size);
-    cudaMalloc(&_d_dB, sizeof(float) * _h_output_size);
+    CHECK_CUDA_ERROR(cudaMalloc((void**)&_d_weights, sizeof(float) * _h_input_size * _h_output_size));
+    CHECK_CUDA_ERROR(cudaMalloc((void**)&_d_bias, sizeof(float) * _h_output_size));
+    CHECK_CUDA_ERROR(cudaMalloc((void**)&_d_output, sizeof(float) * _h_output_size * _h_batch_size));
+    CHECK_CUDA_ERROR(cudaMalloc((void**)&_d_dZ, sizeof(float) * _h_output_size * _h_batch_size));
+    CHECK_CUDA_ERROR(cudaMalloc((void**)&_d_dW, sizeof(float) * _h_input_size * _h_output_size));
+    CHECK_CUDA_ERROR(cudaMalloc((void**)&_d_dB, sizeof(float) * _h_output_size));
     initWeightsAndBias(_d_weights, _d_bias, _h_input_size, _h_output_size);
 }
 
 LinearLayer::~LinearLayer() {
-    cudaFree(_d_weights);
-    cudaFree(_d_bias);
-    cudaFree(_d_output);
-    cudaFree(_d_dZ);
-    cudaFree(_d_dW);
-    cudaFree(_d_dB);
+    CHECK_CUDA_ERROR(cudaFree(_d_weights));
+    CHECK_CUDA_ERROR(cudaFree(_d_bias));
+    CHECK_CUDA_ERROR(cudaFree(_d_output));
+    CHECK_CUDA_ERROR(cudaFree(_d_dZ));
+    CHECK_CUDA_ERROR(cudaFree(_d_dW));
+    CHECK_CUDA_ERROR(cudaFree(_d_dB));
 }
 
 float* LinearLayer::Forward(const float* d_input, std::unique_ptr<Activation> activation) {

@@ -3,7 +3,7 @@
 #include <cuda_runtime.h>
 #include <iostream>
 
-#undef DEBUG_ERRORS
+#define DEBUG_ERRORS
 
 #define CHECK_CUDA_ERROR(val) check((val), #val, __FILE__, __LINE__)
 template <typename T>

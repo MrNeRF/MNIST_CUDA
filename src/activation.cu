@@ -19,8 +19,8 @@ void ReLU::operator()(const int output_size,
     CHECK_LAST_CUDA_ERROR();
 }
 
-void LogSoftMax::operator()(const int output_size,
-                            const int batch_size,
+void LogSoftMax::operator()(const int batch_size,
+                            const int output_size,
                             float* d_value) {
     const int total_size = batch_size * output_size;
     const int threadsPerBlock = 256;

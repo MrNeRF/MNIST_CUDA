@@ -9,8 +9,8 @@
 #include <iomanip>
 #include <memory>
 
-struct Simple_GPU_NN : public NeuralNetwork {
-    Simple_GPU_NN(const int batch_size) : _batch_size(batch_size) {
+struct MNIST_NN : public NeuralNetwork {
+    MNIST_NN(const int batch_size) : _batch_size(batch_size) {
         _fc1 = std::make_unique<LinearLayer>(_batch_size, 784, 50);
         _fc2 = std::make_unique<LinearLayer>(_batch_size, 50, 50);
         _fc3 = std::make_unique<LinearLayer>(_batch_size, 50, 10);

@@ -104,8 +104,14 @@ FetchContent_MakeAvailable(googletest)
 # Enable CTest
 enable_testing()
 
+set(TEST_SOURCES
+    src/linear_layer.cu
+    src/activation.cu
+    src/loss.cu
+    src/validation.cu
+)
 # Add test executable
-add_executable(cuda_kernel_tests tests/cuda_kernel_tests.cu)
+add_executable(cuda_kernel_tests ${TEST_SOURCES} tests/cuda_kernel_tests.cu)
 
 target_include_directories(cuda_kernel_tests PRIVATE ${PROJECT_SOURCE_DIR}/includes ${TORCH_INCLUDE_DIRS})
 set_target_properties(cuda_kernel_tests PROPERTIES

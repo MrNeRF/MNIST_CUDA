@@ -1,3 +1,4 @@
+#include "linear_layer.cuh"
 #include "mlp_mnist.cuh"
 #include <cmath>
 #include <cstdlib>
@@ -9,8 +10,8 @@
 #include <torch/torch.h>
 #include <vector>
 
-struct Simple_GPU_NN : public NeuralNetwork {
-    Simple_GPU_NN(const int batch_size) : _batch_size(batch_size) {
+struct SimpleNN : public NeuralNetwork {
+    SimpleNN(const int batch_size) : _batch_size(batch_size) {
         _fc1 = std::make_unique<LinearLayer>(_batch_size, 4, 3);
         _fc2 = std::make_unique<LinearLayer>(_batch_size, 3, 3);
         _fc3 = std::make_unique<LinearLayer>(_batch_size, 3, 2);
@@ -26,7 +27,7 @@ struct Simple_GPU_NN : public NeuralNetwork {
         output = _fc1->Forward(d_input, std::make_unique<ReLU>());
         output = _fc2->Forward(output, std::make_unique<ReLU>());
         output = _fc3->Forward(output, std::make_unique<LogSoftMax>());
-        return (*_loss)(output, d_labels);
+        return (*_loss)(output, _d_labels);
     }
 
     float* Backward() override {
@@ -76,13 +77,14 @@ struct Libtorch_Simple_Net : torch::nn::Module {
     }
 
     // Implement the Net's algorithm.
-    torch::Tensor forward(torch::Tensor x) {
-        // Use one of many tensor manipulation functions.
-        x = torch::relu(fc1->forward(x));
-        x = torch::relu(fc2->forward(x));
-        x = fc3->forward(x);
+    std::tuple<torch::Tensor, torch::Tensor, torch::Tensor> forward(torch::Tensor x) {
+        torch::Tensor x1, x2, x3;
 
-        return x;
+        x1 = torch::relu(fc1->forward(x));
+        x2 = torch::relu(fc2->forward(x1));
+        x3 = fc3->forward(x2);
+
+        return std::make_tuple(x1, x2, x3);
     }
 
     // Use one of many "standard library" modules.
@@ -91,13 +93,6 @@ struct Libtorch_Simple_Net : torch::nn::Module {
 
 TEST(ForwardPassLossLibtorch, BasicTest) {
     const int batchSize = 5;
-    const int inputDim1 = 4;
-    const int outputDim1 = 3;
-    const int inputDim2 = 3;
-    const int outputDim2 = 3;
-    const int inputDim3 = 3;
-    const int outputDim3 = 2;
-    const int numberOfClasses = 2;
 
     std::vector<int> labels{0, 1, 0, 1, 0};
     std::vector<float> input{0.1f, 0.1f, 0.1f, 0.1f,
@@ -131,7 +126,7 @@ TEST(ForwardPassLossLibtorch, BasicTest) {
     cudaMemcpy(d_labels, labels.data(), labels.size() * sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(d_input, input.data(), input.size() * sizeof(float), cudaMemcpyHostToDevice);
     // Copy initialized weights and biases to the device
-    Simple_GPU_NN myNN(batchSize);
+    SimpleNN myNN(batchSize);
     myNN._fc1->SetWeightsFromCPU(h_weights1);
     myNN._fc1->SetBiasFromCPU(h_biases1);
     myNN._fc2->SetWeightsFromCPU(h_weights2);
@@ -139,7 +134,6 @@ TEST(ForwardPassLossLibtorch, BasicTest) {
     myNN._fc3->SetWeightsFromCPU(h_weights3);
     myNN._fc3->SetBiasFromCPU(h_biases3);
     const float gpu_loss = myNN.Forward(d_input, d_labels);
-    myNN.Backward();
 
     auto options = torch::TensorOptions().dtype(torch::kFloat32);
     auto inputTensor = torch::from_blob(input.data(), {5, 4}, options).requires_grad_(true);
@@ -161,21 +155,44 @@ TEST(ForwardPassLossLibtorch, BasicTest) {
     torchNet->fc3->weight = weightTensor3;
     torchNet->fc3->bias = biasTensor3;
 
-    torch::optim::SGD optimizer(torchNet->parameters(), /*lr=*/0.01);
-    optimizer.zero_grad();
-    auto prediction = torchNet->forward(inputTensor);
+    auto [pred1, pred2, pred3] = torchNet->forward(inputTensor);
+
+    // Because Simple_NN outputs logsoftmax, we need to convert it
+    auto pred3_logsoftmax = torch::log_softmax(pred3, 1);
+    auto torchnet_Layer1_output = pred1.data_ptr<float>();
+    auto torchnet_Layer2_output = pred2.data_ptr<float>();
+    auto torchnet_Layer3_output = pred3_logsoftmax.data_ptr<float>();
+
+    auto myNN_Layer1_output = myNN._fc1->GetOutputCPU();
+    auto myNN_Layer2_output = myNN._fc2->GetOutputCPU();
+    auto myNN_Layer3_output = myNN._fc3->GetOutputCPU();
+
+    for (int i = 0; i < 12; ++i) {
+        EXPECT_NEAR(torchnet_Layer1_output[i], myNN_Layer1_output[i], 1e-4);
+    }
+    for (int i = 0; i < 9; ++i) {
+        EXPECT_NEAR(torchnet_Layer2_output[i], myNN_Layer2_output[i], 1e-4);
+    }
+
+    for (int i = 0; i < 6; ++i) {
+        EXPECT_NEAR(torchnet_Layer3_output[i], myNN_Layer3_output[i], 1e-4);
+    }
 
     // This step is necessary because torch is picky about the input type
     // and the labels are int64_t. If you insert std::vector<int>, the loss computation explodes.
     std::vector<int64_t> labels_torch_long(labels.begin(), labels.end());
 
     auto tensorLables = torch::from_blob(labels_torch_long.data(), {5}, torch::TensorOptions().dtype(torch::kLong));
-    auto libtorch_loss = torch::nn::functional::cross_entropy(prediction, tensorLables);
+    auto libtorch_loss = torch::nn::functional::cross_entropy(pred3, tensorLables);
     EXPECT_NEAR(gpu_loss, libtorch_loss.item<float>(), 1e-4);
 
+    torch::optim::SGD optimizer(torchNet->parameters(), /*lr=*/0.01);
+    optimizer.zero_grad();
     libtorch_loss.backward();
     optimizer.step();
 
+    myNN.Backward();
+    myNN.Update(0.01);
     const bool isGradientWeightLayer3Defined = torchNet->fc3->weight.grad().defined();
     ASSERT_TRUE(isGradientWeightLayer3Defined);
     if (isGradientWeightLayer3Defined) {
