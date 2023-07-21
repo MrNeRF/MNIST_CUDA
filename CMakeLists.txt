@@ -36,6 +36,8 @@ set(HEADERS
     includes/layer.cuh
     includes/activation.cuh
     includes/loss.cuh
+    includes/validation.cuh
+    includes/mlp_mnist.cuh
 )
 
 set(SOURCES
@@ -44,6 +46,7 @@ set(SOURCES
     src/linear_layer.cu
     src/activation.cu
     src/loss.cu
+    src/validation.cu
 )
 
 add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})

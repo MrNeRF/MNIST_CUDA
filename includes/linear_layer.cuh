@@ -19,6 +19,8 @@ public:
     std::vector<float> GetOutputCPU() const override;
 
     float* Forward(const float* d_input, std::unique_ptr<Activation> activation) override;
+    float* Backward(const float* d_dZ, const float* d_activation_prev_layer) override;
+    void Update(float learning_rate) override;
 
 private:
     int _h_batch_size;
@@ -27,4 +29,7 @@ private:
     float* _d_weights;
     float* _d_bias;
     float* _d_output;
+    float* _d_dW;
+    float* _d_dB;
+    float* _d_dZ;
 };

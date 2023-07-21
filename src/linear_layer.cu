@@ -10,24 +10,42 @@ __global__ void AddBiasKernel(const float* biases,
                               const int cols,
                               float* output);
 
-void initWeightsAndBias(float* d_weights, float* d_bias);
+__global__ void BackpropagationKernel(const float* dZ_next,
+                                      const float* A_prev,
+                                      const float* W,
+                                      float* dW,
+                                      float* db,
+                                      float* dZ,
+                                      const int M,
+                                      const int N,
+                                      const int K);
+
+__global__ void GradientDescentUpdateKernel(float* params, const float* gradients, const int size, const float learning_rate);
+
+void initWeightsAndBias(float* d_weights, float* d_bias, int input_size, int output_size);
 
 LinearLayer::LinearLayer(int batch_size, int input_size, int output_size) : _h_batch_size(batch_size),
                                                                             _h_input_size(input_size),
                                                                             _h_output_size(output_size) {
-    cudaMalloc(&_d_weights, sizeof(float) * input_size * output_size);
-    cudaMalloc(&_d_bias, sizeof(float) * output_size);
-    cudaMalloc(&_d_output, sizeof(float) * output_size);
-    initWeightsAndBias();
+    cudaMalloc(&_d_weights, sizeof(float) * _h_input_size * _h_output_size);
+    cudaMalloc(&_d_bias, sizeof(float) * _h_output_size);
+    cudaMalloc(&_d_output, sizeof(float) * _h_output_size * _h_batch_size);
+    cudaMalloc(&_d_dZ, sizeof(float) * _h_output_size * _h_batch_size);
+    cudaMalloc(&_d_dW, sizeof(float) * _h_input_size * _h_output_size);
+    cudaMalloc(&_d_dB, sizeof(float) * _h_output_size);
+    initWeightsAndBias(_d_weights, _d_bias, _h_input_size, _h_output_size);
 }
 
 LinearLayer::~LinearLayer() {
     cudaFree(_d_weights);
     cudaFree(_d_bias);
     cudaFree(_d_output);
+    cudaFree(_d_dZ);
+    cudaFree(_d_dW);
+    cudaFree(_d_dB);
 }
 
-void LinearLayer::Forward(const float* d_input, std::unique_ptr<Activation> activation) {
+float* LinearLayer::Forward(const float* d_input, std::unique_ptr<Activation> activation) {
     cublasHandle_t handle;
     cublasStatus_t status;
 
@@ -43,7 +61,7 @@ void LinearLayer::Forward(const float* d_input, std::unique_ptr<Activation> acti
     const float beta = 0.0f;
 
     cublasSgemm(handle, CUBLAS_OP_T, CUBLAS_OP_N,
-                _h_output_size, batchSize, _h_input_size,
+                _h_output_size, _h_batch_size, _h_input_size,
                 &alpha,
                 _d_weights, _h_input_size,
                 d_input, _h_input_size,
@@ -55,16 +73,46 @@ void LinearLayer::Forward(const float* d_input, std::unique_ptr<Activation> acti
     cublasDestroy(handle);
     CHECK_LAST_CUDA_ERROR();
 
-    AddBiasKernel<<<(batchSize * _h_output_size + 255) / 256, 256>>>(_d_bias,
-                                                                     batchSize,
-                                                                     _h_output_size,
-                                                                     _d_output);
+    AddBiasKernel<<<(_h_batch_size * _h_output_size + 255) / 256, 256>>>(_d_bias,
+                                                                         _h_batch_size,
+                                                                         _h_output_size,
+                                                                         _d_output);
 
     CHECK_LAST_CUDA_ERROR();
 
     if (activation != nullptr) {
-        activation->Forward(_d_output);
+        (*activation)(_h_batch_size, _h_output_size, _d_output);
     }
+
+    return _d_output;
+}
+
+float* LinearLayer::Backward(const float* d_dZ, const float* d_activation_prev_layer) {
+    const int threadsPerBlock = 50;
+    const int blocksPerGrid = (_h_batch_size * _h_output_size * _h_input_size + threadsPerBlock - 1) / threadsPerBlock;
+    // TODO: d_dZ comes from ouside. I think it should be inside.
+    // _d_dz is here allocated but should be outside. This is the output. Not ideal but ok for now.
+    BackpropagationKernel<<<blocksPerGrid, threadsPerBlock>>>(d_dZ,
+                                                              d_activation_prev_layer,
+                                                              _d_weights,
+                                                              _d_dW,
+                                                              _d_dB,
+                                                              _d_dZ,
+                                                              _h_batch_size,
+                                                              _h_output_size,
+                                                              _h_input_size);
+    CHECK_LAST_CUDA_ERROR();
+    return _d_dZ;
+}
+
+void LinearLayer::Update(float learning_rate) {
+    const int threadsPerBlock = 256;
+    const int blocksPerGridWeights = (_h_output_size * _h_input_size + threadsPerBlock - 1) / threadsPerBlock;
+    GradientDescentUpdateKernel<<<blocksPerGridWeights, threadsPerBlock>>>(_d_weights, _d_dW, _h_input_size * _h_output_size, learning_rate);
+    CHECK_LAST_CUDA_ERROR();
+    const int blocksPerGridBias = (_h_output_size + threadsPerBlock - 1) / threadsPerBlock;
+    GradientDescentUpdateKernel<<<blocksPerGridBias, threadsPerBlock>>>(_d_bias, _d_dB, _h_output_size, learning_rate);
+    CHECK_LAST_CUDA_ERROR();
 }
 
 std::vector<float> LinearLayer::GetWeightsCPU() const {
@@ -72,36 +120,37 @@ std::vector<float> LinearLayer::GetWeightsCPU() const {
     CHECK_CUDA_ERROR(cudaMemcpy(weights.data(), _d_weights, weights.size() * sizeof(float), cudaMemcpyDeviceToHost));
     return weights;
 }
-std::vector<float> LineraLayer::GetBiasCPU() const {
+
+std::vector<float> LinearLayer::GetBiasCPU() const {
     std::vector<float> bias(_h_output_size);
     CHECK_CUDA_ERROR(cudaMemcpy(bias.data(), _d_bias, bias.size() * sizeof(float), cudaMemcpyDeviceToHost));
     return bias;
 }
 
-std::vector<float> GetOutputCPU() const {
-    std::vector<float> output(_h_output_size * batchSize);
-    CHECK_CUDA_ERROR(cudaMemcpy(output.data(), _d_output, output.size() sizeof(float), cudaMemcpyDeviceToHost));
+std::vector<float> LinearLayer::GetOutputCPU() const {
+    std::vector<float> output(_h_output_size * _h_batch_size);
+    CHECK_CUDA_ERROR(cudaMemcpy(output.data(), _d_output, output.size() * sizeof(float), cudaMemcpyDeviceToHost));
     return output;
 }
 
-void initWeightsAndBias(float* d_weights, float* d_bias) {
+void initWeightsAndBias(float* d_weights, float* d_bias, int input_size, int output_size) {
     // Allocate memory on the host
-    std::vector<float> weights(_h_input_size * _h_output_size);
-    std::vector<float> biases(_h_output_size);
+    std::vector<float> weights(input_size * output_size);
+    std::vector<float> biases(output_size);
 
     // Initialize weights and biases on the host
-    float stddev = sqrtf(2.0f / _h_input_size); // He initialization
-    for (int i = 0; i < _h_input_size * _h_output_size; i++) {
+    float stddev = sqrtf(2.0f / input_size); // He initialization
+    for (int i = 0; i < input_size * output_size; i++) {
         weights[i] = stddev * (rand() / (RAND_MAX + 1.0f));
     }
 
-    for (int i = 0; i < _h_output_size; i++) {
+    for (int i = 0; i < output_size; i++) {
         biases[i] = 0.0f;
     }
 
     // Copy initialized weights and biases to the device
-    CHECK_CUDA_ERROR(cudaMemcpy(_d_weights, weights.data(), _h_input_size * _h_output_size * sizeof(float), cudaMemcpyHostToDevice));
-    CHECK_CUDA_ERROR(cudaMemcpy(_d_bias, biases.data(), _h_output_size * sizeof(float), cudaMemcpyHostToDevice));
+    CHECK_CUDA_ERROR(cudaMemcpy(d_weights, weights.data(), input_size * output_size * sizeof(float), cudaMemcpyHostToDevice));
+    CHECK_CUDA_ERROR(cudaMemcpy(d_bias, biases.data(), output_size * sizeof(float), cudaMemcpyHostToDevice));
 }
 
 __global__ void AddBiasKernel(const float* biases,
@@ -114,5 +163,62 @@ __global__ void AddBiasKernel(const float* biases,
 
     if (row < rows && col < cols) {
         output[idx] += biases[col];
+    }
+}
+
+// M = batchSize, N = outputSize, K = inputSize
+__global__ void BackpropagationKernel(const float* dZ_next,
+                                      const float* A_prev,
+                                      const float* W,
+                                      float* dW,
+                                      float* db,
+                                      float* dZ,
+                                      const int M,
+                                      const int N,
+                                      const int K) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+    // Calculate weights derivative
+    if (idx < N * K) {
+        const int n = idx / K;
+        const int k = idx % K;
+
+        float sum = 0.0f;
+        for (int m = 0; m < M; ++m) {
+            sum += dZ_next[m * N + n] * A_prev[m * K + k];
+        }
+        dW[idx] = sum / M;
+    }
+
+    // Calculate biases derivative
+    if (idx < N) {
+        float sum = 0.0f;
+        // iterate over all batches and sum the gradients
+        // db dimensions are 1 x K
+        for (int m = 0; m < M; ++m) {
+            sum += dZ_next[m * N + idx];
+        }
+        db[idx] = sum / M;
+    }
+
+    if (dZ && idx < K) {
+        for (int m = 0; m < M; ++m) {
+            float sum = 0.0f;
+            for (int n = 0; n < N; ++n) {
+                sum += dZ_next[m * N + n] * W[n * K + idx];
+            }
+
+            // Apply the derivative of ReLU activation function
+            sum = A_prev[m * K + idx] > 0 ? sum : 0;
+
+            dZ[m * K + idx] = sum;
+        }
+    }
+}
+
+__global__ void GradientDescentUpdateKernel(float* params, const float* gradients, const int size, const float learning_rate) {
+    const int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < size) {
+        params[idx] -= learning_rate * gradients[idx];
     }
 }

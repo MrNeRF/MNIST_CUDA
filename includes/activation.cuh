@@ -1,7 +1,7 @@
 #pragma once
 
 struct Activation {
-    ~Activation();
+    virtual ~Activation() = default;
     virtual void operator()(const int batch_size,
                             const int output_size,
                             float* d_value) = 0;
