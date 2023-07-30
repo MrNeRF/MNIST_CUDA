@@ -91,7 +91,7 @@ target_link_libraries(${PROJECT_NAME}
         CUDA::cublas
 )
 
-# Add Google Test
+# Add Google Test manually
 include(FetchContent)
 FetchContent_Declare(
   googletest
@@ -99,7 +99,16 @@ FetchContent_Declare(
   GIT_TAG        release-1.10.0
 )
 
-FetchContent_MakeAvailable(googletest)
+FetchContent_GetProperties(googletest)
+if(NOT googletest_POPULATED)
+  FetchContent_Populate(googletest)
+  add_subdirectory(${googletest_SOURCE_DIR} ${googletest_BINARY_DIR} EXCLUDE_FROM_ALL)
+endif()
+
+# Remove -Werror from the compile options of Google Test
+set_target_properties(gtest gtest_main PROPERTIES
+  COMPILE_OPTIONS "-Wno-error"
+)
 
 # Enable CTest
 enable_testing()

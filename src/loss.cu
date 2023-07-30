@@ -63,12 +63,12 @@ __global__ void CrossEntropyLossKernel(const float* predictions,
                                        float* loss,
                                        const int numClasses,
                                        const int batch_size) {
-    int idx = threadIdx.x + blockIdx.x * blockDim.x;
+    const int idx = threadIdx.x + blockIdx.x * blockDim.x;
     if (idx >= batch_size)
         return;
 
-    int label = labels[idx];
-    float prediction = predictions[idx * numClasses + label];
+    const int label = labels[idx];
+    const float prediction = predictions[idx * numClasses + label];
     atomicAdd(loss, -prediction);
 }
 

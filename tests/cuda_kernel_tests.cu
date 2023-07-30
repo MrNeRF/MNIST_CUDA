@@ -15,7 +15,7 @@ struct SimpleNN : public NeuralNetwork {
         _fc1 = std::make_unique<LinearLayer>(_batch_size, 4, 3);
         _fc2 = std::make_unique<LinearLayer>(_batch_size, 3, 3);
         _fc3 = std::make_unique<LinearLayer>(_batch_size, 3, 2);
-        _loss = std::make_unique<CrossEntropyLoss>(10, _batch_size);
+        _loss = std::make_unique<CrossEntropyLoss>(2, _batch_size);
 
         CHECK_CUDA_ERROR(cudaMalloc((void**)&_d_predictions, _batch_size * sizeof(int))); // Allocate device memory for predictions
     }
