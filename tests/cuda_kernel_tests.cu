@@ -91,6 +91,11 @@ struct Libtorch_Simple_Net : torch::nn::Module {
     torch::nn::Linear fc1{nullptr}, fc2{nullptr}, fc3{nullptr};
 };
 
+// This test is to check if the forward pass is working correctly
+// The weights and biases are initialized to a known value
+// The output of the forward pass is compared with the output of the libtorch implementation
+// The loss is also compared with the libtorch implementation
+// The gradients are also compared with the libtorch implementation
 TEST(ForwardPassLossLibtorch, BasicTest) {
     const int batchSize = 5;
 
@@ -211,7 +216,42 @@ TEST(ForwardPassLossLibtorch, BasicTest) {
         }
     }
 
-    // Copy output data to host
+    const bool isGradientWeightLayer2Defined = torchNet->fc2->weight.grad().defined();
+    ASSERT_TRUE(isGradientWeightLayer2Defined);
+    if (isGradientWeightLayer2Defined) {
+        const auto gpuGradientWeightsLayer2 = myNN._fc2->GetWeightGradientsCPU();
+        for (int i = 0; i < gpuGradientWeightsLayer2.size(); ++i) {
+            EXPECT_NEAR(torchNet->fc2->weight.grad().view(-1)[i].item<float>(), gpuGradientWeightsLayer2[i], 1e-4);
+        }
+    }
+
+    const bool isGradientBiasLayer2Defined = torchNet->fc2->bias.grad().defined();
+    ASSERT_TRUE(isGradientBiasLayer2Defined);
+    if (isGradientBiasLayer2Defined) {
+        const auto gpuGradientBiasesLayer2 = myNN._fc2->GetBiasGradientsCPU();
+        for (int i = 0; i < gpuGradientBiasesLayer2.size(); ++i) {
+            EXPECT_NEAR(torchNet->fc2->bias.grad().view(-1)[i].item<float>(), gpuGradientBiasesLayer2[i], 1e-4);
+        }
+    }
+
+    const bool isGradientWeightLayer1Defined = torchNet->fc1->weight.grad().defined();
+    ASSERT_TRUE(isGradientWeightLayer1Defined);
+    if (isGradientWeightLayer1Defined) {
+        const auto gpuGradientWeightsLayer1 = myNN._fc1->GetWeightGradientsCPU();
+        for (int i = 0; i < gpuGradientWeightsLayer1.size(); ++i) {
+            EXPECT_NEAR(torchNet->fc1->weight.grad().view(-1)[i].item<float>(), gpuGradientWeightsLayer1[i], 1e-4);
+        }
+    }
+
+    const bool isGradientBiasLayer1Defined = torchNet->fc1->bias.grad().defined();
+    ASSERT_TRUE(isGradientBiasLayer1Defined);
+    if (isGradientBiasLayer1Defined) {
+        const auto gpuGradientBiasesLayer1 = myNN._fc1->GetBiasGradientsCPU();
+        for (int i = 0; i < gpuGradientBiasesLayer1.size(); ++i) {
+            EXPECT_NEAR(torchNet->fc1->bias.grad().view(-1)[i].item<float>(), gpuGradientBiasesLayer1[i], 1e-4);
+        }
+    }
+
     // Free device memory
     cudaFree(d_input);
     cudaFree(d_labels);
