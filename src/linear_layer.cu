@@ -45,7 +45,7 @@ LinearLayer::~LinearLayer() {
     CHECK_CUDA_ERROR(cudaFree(_d_dB));
 }
 
-float* LinearLayer::Forward(const float* d_input, std::unique_ptr<Activation> activation) {
+const float* LinearLayer::Forward(const float* d_input, std::unique_ptr<Activation> activation) {
     cublasHandle_t handle;
     cublasStatus_t status;
 
@@ -87,7 +87,7 @@ float* LinearLayer::Forward(const float* d_input, std::unique_ptr<Activation> ac
     return _d_output;
 }
 
-float* LinearLayer::Backward(const float* d_dZ, const float* d_activation_prev_layer) {
+const float* LinearLayer::Backward(const float* d_dZ, const float* d_activation_prev_layer) {
     const int threadsPerBlock = 50;
     const int blocksPerGrid = (_h_batch_size * _h_output_size * _h_input_size + threadsPerBlock - 1) / threadsPerBlock;
     // TODO: d_dZ comes from ouside. I think it should be inside.

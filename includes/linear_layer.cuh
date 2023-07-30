@@ -22,8 +22,8 @@ public:
     std::vector<float> GetWeightGradientsCPU() const override;
     std::vector<float> GetBiasGradientsCPU() const override;
 
-    float* Forward(const float* d_input, std::unique_ptr<Activation> activation) override;
-    float* Backward(const float* d_dZ, const float* d_activation_prev_layer) override;
+    const float* Forward(const float* d_input, std::unique_ptr<Activation> activation) override;
+    const float* Backward(const float* d_dZ, const float* d_activation_prev_layer) override;
     void Update(float learning_rate) override;
 
 private:

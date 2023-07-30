@@ -23,7 +23,7 @@ struct SimpleNN : public NeuralNetwork {
     float Forward(const float* d_input, const int* d_labels) override {
         _d_input = d_input;
         _d_labels = d_labels;
-        float* output = nullptr;
+        const float* output = nullptr;
         output = _fc1->Forward(d_input, std::make_unique<ReLU>());
         output = _fc2->Forward(output, std::make_unique<ReLU>());
         output = _fc3->Forward(output, std::make_unique<LogSoftMax>());
@@ -31,7 +31,7 @@ struct SimpleNN : public NeuralNetwork {
     }
 
     float* Backward() override {
-        float* d_dZ = nullptr;
+        const float* d_dZ = nullptr;
         d_dZ = (*_loss).Backward(_fc3->GetOutputGPU(), _d_labels);
         d_dZ = _fc3->Backward(d_dZ, _fc2->GetOutputGPU());
         d_dZ = _fc2->Backward(d_dZ, _fc1->GetOutputGPU());
@@ -48,7 +48,7 @@ struct SimpleNN : public NeuralNetwork {
     };
 
     float Predict(const float* d_input, const int* d_labels) override {
-        float* output = nullptr;
+        const float* output = nullptr;
         output = _fc1->Forward(d_input, std::make_unique<ReLU>());
         output = _fc2->Forward(output, std::make_unique<ReLU>());
         output = _fc3->Forward(output, std::make_unique<LogSoftMax>());
