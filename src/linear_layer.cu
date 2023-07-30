@@ -49,6 +49,8 @@ const float* LinearLayer::Forward(const float* d_input, std::unique_ptr<Activati
     cublasHandle_t handle;
     cublasStatus_t status;
 
+    cudaMemset(_d_dW, 0, sizeof(float) * _h_input_size * _h_output_size);
+    cudaMemset(_d_dB, 0, sizeof(float) * _h_output_size);
     status = cublasCreate(&handle);
     if (status != CUBLAS_STATUS_SUCCESS) {
         std::cerr << "Failed to create cuBLAS handle." << std::endl;

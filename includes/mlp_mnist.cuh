@@ -35,6 +35,7 @@ struct MNIST_NN : public NeuralNetwork {
         d_dZ = _fc3->Backward(d_dZ, _fc2->GetOutputGPU());
         d_dZ = _fc2->Backward(d_dZ, _fc1->GetOutputGPU());
         d_dZ = _fc1->Backward(d_dZ, _d_input);
+        d_dZ = nullptr;
         return nullptr;
     };
 
@@ -56,7 +57,7 @@ struct MNIST_NN : public NeuralNetwork {
         return ComputeAccuracy(_d_predictions, d_labels, _batch_size);
     }
 
-    int _batch_size = 64;
+    const int _batch_size = 64;
     std::unique_ptr<LinearLayer> _fc1, _fc2, _fc3;
     std::unique_ptr<Loss> _loss;
 

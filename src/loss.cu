@@ -73,12 +73,12 @@ __global__ void CrossEntropyLossKernel(const float* predictions,
 }
 
 __global__ void ComputeDzLastLayerKernel(const float* log_predictions, const int* labels, float* dZ, const int numClasses, const int batchSize) {
-    int idx = threadIdx.x + blockIdx.x * blockDim.x;
+    const int idx = threadIdx.x + blockIdx.x * blockDim.x;
     if (idx >= batchSize)
         return;
 
     for (int i = 0; i < numClasses; i++) {
-        float softmax_output = expf(log_predictions[idx * numClasses + i]); // convert log_softmax to softmax
+        const float softmax_output = expf(log_predictions[idx * numClasses + i]); // convert log_softmax to softmax
         dZ[idx * numClasses + i] = softmax_output - (i == labels[idx] ? 1.0f : 0.0f);
     }
 }

@@ -258,8 +258,8 @@ TEST(ForwardPassLossLibtorch, BasicTest) {
 }
 
 TEST(MNIST_Test, BasicTest) {
-    struct Net : torch::nn::Module {
-        Net(int inputDim1, int outputDim1, int inputDim2, int outputDim2, int inputDim3, int outputDim3) {
+    struct TorchNet : torch::nn::Module {
+        TorchNet(int inputDim1, int outputDim1, int inputDim2, int outputDim2, int inputDim3, int outputDim3) {
             // Construct and register two Linear submodules.
             fc1 = register_module("fc1", torch::nn::Linear(inputDim1, outputDim1));
             fc2 = register_module("fc2", torch::nn::Linear(inputDim2, outputDim2));
@@ -280,11 +280,11 @@ TEST(MNIST_Test, BasicTest) {
         torch::nn::Linear fc1{nullptr}, fc2{nullptr}, fc3{nullptr};
     };
 
-    auto net = std::make_shared<Net>(28 * 28, 50,
-                                     50, 50,
-                                     50, 10);
+    auto torch_net = std::make_shared<TorchNet>(28 * 28, 50,
+                                                50, 50,
+                                                50, 10);
 
-    torch::optim::SGD optimizer(net->parameters(), /*lr=*/0.01);
+    torch::optim::SGD optimizer(torch_net->parameters(), /*lr=*/0.01);
     int batchSize = 32;
     ///////////// HERE CUDA IMPL
     MNIST_NN model(batchSize);
@@ -296,25 +296,25 @@ TEST(MNIST_Test, BasicTest) {
     // Initialize weights and biases to values from libtorch
     {
         torch::NoGradGuard no_grad;
-        model._fc1->SetWeightsFromCPU(reinterpret_cast<const float*>(net->fc1->weight.clone().to(torch::kCPU).to(torch::kFloat32).contiguous().data_ptr()));
-        model._fc1->SetBiasFromCPU(reinterpret_cast<const float*>(net->fc1->bias.clone().to(torch::kCPU).to(torch::kFloat32).contiguous().data_ptr()));
-        model._fc2->SetWeightsFromCPU(reinterpret_cast<const float*>(net->fc2->weight.clone().to(torch::kCPU).to(torch::kFloat32).contiguous().data_ptr()));
-        model._fc2->SetBiasFromCPU(reinterpret_cast<const float*>(net->fc2->bias.clone().to(torch::kCPU).to(torch::kFloat32).contiguous().data_ptr()));
-        model._fc3->SetWeightsFromCPU(reinterpret_cast<const float*>(net->fc3->weight.clone().to(torch::kCPU).to(torch::kFloat32).contiguous().data_ptr()));
-        model._fc3->SetBiasFromCPU(reinterpret_cast<const float*>(net->fc3->bias.clone().to(torch::kCPU).to(torch::kFloat32).contiguous().data_ptr()));
+        model._fc1->SetWeightsFromCPU(reinterpret_cast<const float*>(torch_net->fc1->weight.clone().to(torch::kCPU).to(torch::kFloat32).contiguous().data_ptr()));
+        model._fc1->SetBiasFromCPU(reinterpret_cast<const float*>(torch_net->fc1->bias.clone().to(torch::kCPU).to(torch::kFloat32).contiguous().data_ptr()));
+        model._fc2->SetWeightsFromCPU(reinterpret_cast<const float*>(torch_net->fc2->weight.clone().to(torch::kCPU).to(torch::kFloat32).contiguous().data_ptr()));
+        model._fc2->SetBiasFromCPU(reinterpret_cast<const float*>(torch_net->fc2->bias.clone().to(torch::kCPU).to(torch::kFloat32).contiguous().data_ptr()));
+        model._fc3->SetWeightsFromCPU(reinterpret_cast<const float*>(torch_net->fc3->weight.clone().to(torch::kCPU).to(torch::kFloat32).contiguous().data_ptr()));
+        model._fc3->SetBiasFromCPU(reinterpret_cast<const float*>(torch_net->fc3->bias.clone().to(torch::kCPU).to(torch::kFloat32).contiguous().data_ptr()));
     }
 
     // Create a multi-threaded data loader for the MNIST dataset.
-    auto data_loader = torch::data::make_data_loader(
+    auto data_loader = torch::data::make_data_loader<torch::data::samplers::SequentialSampler>(
         torch::data::datasets::MNIST("./data").map(
             torch::data::transforms::Stack<>()),
         /*batch_size=*/batchSize);
 
-    float total_loss_gpu = 0.0f;
-    float total_loss_libtorch = 0.0f;
-    int total_batches = 0;
-
     for (size_t epoch = 1; epoch <= 50; ++epoch) {
+        float total_loss_gpu = 0.0f;
+        float total_loss_libtorch = 0.0f;
+        int total_batches = 0;
+
         for (auto& batch : *data_loader) {
             batch.data = batch.data.view({batchSize, -1});
             {
@@ -322,30 +322,31 @@ TEST(MNIST_Test, BasicTest) {
                 torch::NoGradGuard no_grad;
                 CHECK_CUDA_ERROR(cudaMemcpy(d_labels, batch.target.clone().to(torch::kCPU).to(torch::kInt32).contiguous().data_ptr(), batchSize * sizeof(int), cudaMemcpyHostToDevice));
                 // Copy to GPU memory
-                CHECK_CUDA_ERROR(cudaMemcpy(d_input, batch.data.clone().to(torch::kCPU).to(torch::kFloat32).contiguous().data_ptr(), 784 * batchSize * sizeof(float), cudaMemcpyHostToDevice));
+                CHECK_CUDA_ERROR(cudaMemcpy(d_input, batch.data.clone().to(torch::kCPU).to(torch::kFloat32).contiguous().data_ptr(), 28 * 28 * batchSize * sizeof(float), cudaMemcpyHostToDevice));
             }
-            const float loss = model.Forward(d_input, d_labels);
+            const float gpu_loss = model.Forward(d_input, d_labels);
             model.Backward();
             model.Update(0.01);
-            // Copy loss from device to host memory
+
             // libtorch
             optimizer.zero_grad();
-            auto prediction = net->forward(batch.data);
+            auto prediction = torch_net->forward(batch.data);
             auto libtorch_loss = torch::nn::functional::cross_entropy(prediction, batch.target);
             libtorch_loss.backward();
             optimizer.step();
 
-            total_loss_gpu += loss;
-            total_loss_libtorch += libtorch_loss.item<float>();
+            const float libtorch_loss_float = libtorch_loss.item<float>();
+            total_loss_libtorch += libtorch_loss_float;
+            total_loss_gpu += gpu_loss;
             ++total_batches;
+            std::cout << "GPU loss:      " << gpu_loss << std::endl;
+            std::cout << "Libtorch loss: " << libtorch_loss_float << std::endl;
         }
 
         std::cout << "========= Epoch " << epoch << " =========" << std::endl;
         std::cout << "Avg. GPU loss:     " << total_loss_gpu / total_batches << std::endl;
         std::cout << "Avg Libtorch loss: " << total_loss_libtorch / total_batches << std::endl;
-        total_loss_gpu = 0.0f;      // Reset total loss
-        total_loss_libtorch = 0.0f; // Reset total loss
-        total_batches = 0;          // Reset total batches
+        break;
     }
 
     cudaFree(d_input);
