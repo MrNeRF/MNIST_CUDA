@@ -257,184 +257,100 @@ TEST(ForwardPassLossLibtorch, BasicTest) {
     cudaFree(d_labels);
 }
 
-// TEST(MNIST_Test, BasicTest) {
-//     struct Net : torch::nn::Module {
-//         Net(int inputDim1, int outputDim1, int inputDim2, int outputDim2, int inputDim3, int outputDim3) {
-//             // Construct and register two Linear submodules.
-//             fc1 = register_module("fc1", torch::nn::Linear(inputDim1, outputDim1));
-//             fc2 = register_module("fc2", torch::nn::Linear(inputDim2, outputDim2));
-//             fc3 = register_module("fc3", torch::nn::Linear(inputDim3, outputDim3));
-//         }
+TEST(MNIST_Test, BasicTest) {
+    struct Net : torch::nn::Module {
+        Net(int inputDim1, int outputDim1, int inputDim2, int outputDim2, int inputDim3, int outputDim3) {
+            // Construct and register two Linear submodules.
+            fc1 = register_module("fc1", torch::nn::Linear(inputDim1, outputDim1));
+            fc2 = register_module("fc2", torch::nn::Linear(inputDim2, outputDim2));
+            fc3 = register_module("fc3", torch::nn::Linear(inputDim3, outputDim3));
+        }
 
-//         // Implement the Net's algorithm.
-//         torch::Tensor forward(torch::Tensor x) {
-//             // Use one of many tensor manipulation functions.
-//             x = torch::relu(fc1->forward(x));
-//             x = torch::relu(fc2->forward(x));
-//             x = fc3->forward(x);
+        // Implement the Net's algorithm.
+        torch::Tensor forward(torch::Tensor x) {
+            // Use one of many tensor manipulation functions.
+            x = torch::relu(fc1->forward(x));
+            x = torch::relu(fc2->forward(x));
+            x = fc3->forward(x);
 
-//             return x;
-//         }
+            return x;
+        }
 
-//         // Use one of many "standard library" modules.
-//         torch::nn::Linear fc1{nullptr}, fc2{nullptr}, fc3{nullptr};
-//     };
+        // Use one of many "standard library" modules.
+        torch::nn::Linear fc1{nullptr}, fc2{nullptr}, fc3{nullptr};
+    };
 
-//     auto net = std::make_shared<Net>(28 * 28, 50,
-//                                      50, 50,
-//                                      50, 10);
+    auto net = std::make_shared<Net>(28 * 28, 50,
+                                     50, 50,
+                                     50, 10);
 
-//     torch::optim::SGD optimizer(net->parameters(), /*lr=*/0.01);
-//     int batchSize = 32;
-//     ///////////// HERE CUDA IMPL
-//     DenseLayer layer1(784, 50);
-//     DenseLayer layer2(50, 50);
-//     DenseLayer layer3(50, 10);
+    torch::optim::SGD optimizer(net->parameters(), /*lr=*/0.01);
+    int batchSize = 32;
+    ///////////// HERE CUDA IMPL
+    MNIST_NN model(batchSize);
+    float* d_input;
+    CHECK_CUDA_ERROR(cudaMalloc((void**)&d_input, 784 * batchSize * sizeof(float))); // Allocate device memory for input
+    int* d_labels;
+    CHECK_CUDA_ERROR(cudaMalloc((void**)&d_labels, batchSize * sizeof(int))); // Allocate device memory for labels
 
-//     // Allocate GPU memory
-//     float* d_input;
-//     CHECK_CUDA_ERROR(cudaMalloc((void**)&d_input, 784 * batchSize * sizeof(float))); // input size of layer1
-//     float* d_output1;
-//     CHECK_CUDA_ERROR(cudaMalloc((void**)&d_output1, 50 * batchSize * sizeof(float))); // output size of layer1 (input size of layer2)
-//     float* d_output2;
-//     CHECK_CUDA_ERROR(cudaMalloc((void**)&d_output2, 50 * batchSize * sizeof(float))); // output size of layer2 (input size of layer3)
-//     float* d_output3;
-//     CHECK_CUDA_ERROR(cudaMalloc((void**)&d_output3, 10 * batchSize * sizeof(float))); // output size of layer3
-//     float* d_softmax_output;
-//     CHECK_CUDA_ERROR(cudaMalloc((void**)&d_softmax_output, 10 * batchSize * sizeof(float)));
-//     float dropout_rate = 0.5; // Adjust this value as needed
-//     float* d_mask1;
-//     CHECK_CUDA_ERROR(cudaMalloc((void**)&d_mask1, 50 * batchSize * sizeof(float))); // mask for layer1
-//     float* d_mask2;
-//     CHECK_CUDA_ERROR(cudaMalloc((void**)&d_mask2, 50 * batchSize * sizeof(float))); // mask for layer2
+    // Initialize weights and biases to values from libtorch
+    {
+        torch::NoGradGuard no_grad;
+        model._fc1->SetWeightsFromCPU(reinterpret_cast<const float*>(net->fc1->weight.clone().to(torch::kCPU).to(torch::kFloat32).contiguous().data_ptr()));
+        model._fc1->SetBiasFromCPU(reinterpret_cast<const float*>(net->fc1->bias.clone().to(torch::kCPU).to(torch::kFloat32).contiguous().data_ptr()));
+        model._fc2->SetWeightsFromCPU(reinterpret_cast<const float*>(net->fc2->weight.clone().to(torch::kCPU).to(torch::kFloat32).contiguous().data_ptr()));
+        model._fc2->SetBiasFromCPU(reinterpret_cast<const float*>(net->fc2->bias.clone().to(torch::kCPU).to(torch::kFloat32).contiguous().data_ptr()));
+        model._fc3->SetWeightsFromCPU(reinterpret_cast<const float*>(net->fc3->weight.clone().to(torch::kCPU).to(torch::kFloat32).contiguous().data_ptr()));
+        model._fc3->SetBiasFromCPU(reinterpret_cast<const float*>(net->fc3->bias.clone().to(torch::kCPU).to(torch::kFloat32).contiguous().data_ptr()));
+    }
 
-//     // Allocate memory for gradients
-//     float* derivative_Loss_Weights1;
-//     CHECK_CUDA_ERROR(cudaMalloc((void**)&derivative_Loss_Weights1, layer1.inputSize * layer1.outputSize * sizeof(float)));
-//     float* derivative_Loss_Biases1;
-//     CHECK_CUDA_ERROR(cudaMalloc((void**)&derivative_Loss_Biases1, layer1.outputSize * sizeof(float)));
+    // Create a multi-threaded data loader for the MNIST dataset.
+    auto data_loader = torch::data::make_data_loader(
+        torch::data::datasets::MNIST("./data").map(
+            torch::data::transforms::Stack<>()),
+        /*batch_size=*/batchSize);
 
-//     float* derivative_Loss_Weights2;
-//     CHECK_CUDA_ERROR(cudaMalloc((void**)&derivative_Loss_Weights2, layer2.inputSize * layer2.outputSize * sizeof(float)));
-//     float* derivative_Loss_Biases2;
-//     CHECK_CUDA_ERROR(cudaMalloc((void**)&derivative_Loss_Biases2, layer2.outputSize * sizeof(float)));
+    float total_loss_gpu = 0.0f;
+    float total_loss_libtorch = 0.0f;
+    int total_batches = 0;
 
-//     float* derivative_Loss_Weights3;
-//     CHECK_CUDA_ERROR(cudaMalloc((void**)&derivative_Loss_Weights3, layer3.inputSize * layer3.outputSize * sizeof(float)));
-//     float* derivative_Loss_Biases3;
-//     CHECK_CUDA_ERROR(cudaMalloc((void**)&derivative_Loss_Biases3, layer3.outputSize * sizeof(float)));
+    for (size_t epoch = 1; epoch <= 50; ++epoch) {
+        for (auto& batch : *data_loader) {
+            batch.data = batch.data.view({batchSize, -1});
+            {
+                // copy data to gpu
+                torch::NoGradGuard no_grad;
+                CHECK_CUDA_ERROR(cudaMemcpy(d_labels, batch.target.clone().to(torch::kCPU).to(torch::kInt32).contiguous().data_ptr(), batchSize * sizeof(int), cudaMemcpyHostToDevice));
+                // Copy to GPU memory
+                CHECK_CUDA_ERROR(cudaMemcpy(d_input, batch.data.clone().to(torch::kCPU).to(torch::kFloat32).contiguous().data_ptr(), 784 * batchSize * sizeof(float), cudaMemcpyHostToDevice));
+            }
+            const float loss = model.Forward(d_input, d_labels);
+            model.Backward();
+            model.Update(0.01);
+            // Copy loss from device to host memory
+            // libtorch
+            optimizer.zero_grad();
+            auto prediction = net->forward(batch.data);
+            auto libtorch_loss = torch::nn::functional::cross_entropy(prediction, batch.target);
+            libtorch_loss.backward();
+            optimizer.step();
 
-//     int* d_labels;
-//     CHECK_CUDA_ERROR(cudaMalloc((void**)&d_labels, batchSize * sizeof(int))); // Allocate device memory for labels
+            total_loss_gpu += loss;
+            total_loss_libtorch += libtorch_loss.item<float>();
+            ++total_batches;
+        }
 
-//     float loss;
-//     float* d_loss;
-//     CHECK_CUDA_ERROR(cudaMalloc((void**)&d_loss, sizeof(float))); // Allocate device memory for loss
+        std::cout << "========= Epoch " << epoch << " =========" << std::endl;
+        std::cout << "Avg. GPU loss:     " << total_loss_gpu / total_batches << std::endl;
+        std::cout << "Avg Libtorch loss: " << total_loss_libtorch / total_batches << std::endl;
+        total_loss_gpu = 0.0f;      // Reset total loss
+        total_loss_libtorch = 0.0f; // Reset total loss
+        total_batches = 0;          // Reset total batches
+    }
 
-//     // Allocate GPU memory for the backpropagation
-//     float *d_dZ1, *d_dZ2, *d_dZ3;
-//     CHECK_CUDA_ERROR(cudaMalloc((void**)&d_dZ1, 50 * batchSize * sizeof(float)));
-//     CHECK_CUDA_ERROR(cudaMalloc((void**)&d_dZ2, 50 * batchSize * sizeof(float)));
-//     CHECK_CUDA_ERROR(cudaMalloc((void**)&d_dZ3, 10 * batchSize * sizeof(float)));
-
-//     // Copy initialized weights and biases to the device
-//     {
-//         torch::NoGradGuard no_grad;
-//         cudaMemcpy(layer1.weights, net->fc1->weight.clone().to(torch::kCPU).to(torch::kFloat32).contiguous().data_ptr(), layer1.inputSize * layer1.outputSize * sizeof(float), cudaMemcpyHostToDevice);
-//         cudaMemcpy(layer1.biases, net->fc1->bias.clone().to(torch::kCPU).to(torch::kFloat32).contiguous().data_ptr(), layer1.outputSize * sizeof(float), cudaMemcpyHostToDevice);
-//         cudaMemcpy(layer2.weights, net->fc2->weight.clone().to(torch::kCPU).to(torch::kFloat32).contiguous().data_ptr(), layer2.inputSize * layer2.outputSize * sizeof(float), cudaMemcpyHostToDevice);
-//         cudaMemcpy(layer2.biases, net->fc2->bias.clone().to(torch::kCPU).to(torch::kFloat32).contiguous().data_ptr(), layer2.outputSize * sizeof(float), cudaMemcpyHostToDevice);
-//         cudaMemcpy(layer3.weights, net->fc3->weight.clone().to(torch::kCPU).to(torch::kFloat32).contiguous().data_ptr(), layer3.inputSize * layer3.outputSize * sizeof(float), cudaMemcpyHostToDevice);
-//         cudaMemcpy(layer3.biases, net->fc3->bias.clone().to(torch::kCPU).to(torch::kFloat32).contiguous().data_ptr(), layer3.outputSize * sizeof(float), cudaMemcpyHostToDevice);
-//     }
-
-//     // Create a multi-threaded data loader for the MNIST dataset.
-//     auto data_loader = torch::data::make_data_loader(
-//         torch::data::datasets::MNIST("./data").map(
-//             torch::data::transforms::Stack<>()),
-//         /*batch_size=*/batchSize);
-
-//     float total_loss_gpu = 0.0f;
-//     float total_loss_libtorch = 0.0f;
-//     int total_batches = 0;
-
-//     for (size_t epoch = 1; epoch <= 50; ++epoch) {
-//         for (auto& batch : *data_loader) {
-//             batch.data = batch.data.view({batchSize, -1});
-//             {
-//                 // copy data to gpu
-//                 torch::NoGradGuard no_grad;
-//                 CHECK_CUDA_ERROR(cudaMemcpy(d_labels, batch.target.clone().to(torch::kCPU).to(torch::kInt32).contiguous().data_ptr(), batchSize * sizeof(int), cudaMemcpyHostToDevice));
-//                 // Copy to GPU memory
-//                 CHECK_CUDA_ERROR(cudaMemcpy(d_input, batch.data.clone().to(torch::kCPU).to(torch::kFloat32).contiguous().data_ptr(), 784 * batchSize * sizeof(float), cudaMemcpyHostToDevice));
-//             }
-//             // Forward propagation
-//             ForwardPropagation(layer1, d_input, d_output1, true, batchSize);
-//             ForwardPropagation(layer2, d_output1, d_output2, true, batchSize);
-//             ForwardPropagation(layer3, d_output2, d_output3, false, batchSize);
-//             // log probabilities
-//             LogSoftmaxBatch<<<(10 + 255) / 50, 50>>>(d_output3, d_softmax_output, 10, batchSize);
-//             CHECK_LAST_CUDA_ERROR();
-//             CHECK_CUDA_ERROR(cudaMemset(d_loss, 0, sizeof(float)));
-//             // loss
-//             CrossEntropyLoss<<<(batchSize + 255) / 50, 50>>>(d_softmax_output, d_labels, d_loss, 10, batchSize);
-//             CHECK_LAST_CUDA_ERROR();
-//             // Compute Dz last layer
-//             ComputeDzLastLayer<<<(batchSize + 255) / 50, 50>>>(d_softmax_output, d_labels, d_dZ3, 10, batchSize);
-//             CHECK_LAST_CUDA_ERROR();
-//             CHECK_CUDA_ERROR(cudaMemset(derivative_Loss_Weights3, 0, layer3.inputSize * layer3.outputSize * sizeof(float)));
-//             CHECK_CUDA_ERROR(cudaMemset(derivative_Loss_Biases3, 0, layer3.outputSize * sizeof(float)));
-//             // Compute Gradients
-//             ComputeGradients(layer3, d_dZ3, d_output2, derivative_Loss_Weights3, derivative_Loss_Biases3, d_dZ2, batchSize, d_output2);
-//             ComputeGradients(layer2, d_dZ2, d_output1, derivative_Loss_Weights2, derivative_Loss_Biases2, d_dZ1, batchSize, d_output1);
-//             ComputeGradients(layer1, d_dZ1, d_input, derivative_Loss_Weights1, derivative_Loss_Biases1, nullptr, batchSize, nullptr);
-//             // Then update weights and biases
-//             UpdateWeightsAndBiases(layer3, derivative_Loss_Weights3, derivative_Loss_Biases3, 0.01, 1.0);
-//             UpdateWeightsAndBiases(layer2, derivative_Loss_Weights2, derivative_Loss_Biases2, 0.01, 1.0);
-//             UpdateWeightsAndBiases(layer1, derivative_Loss_Weights1, derivative_Loss_Biases1, 0.01, 1.0);
-
-//             // Copy loss from device to host memory
-//             loss = 0;
-//             CHECK_CUDA_ERROR(cudaMemcpy(&loss, d_loss, sizeof(float), cudaMemcpyDeviceToHost));
-//             loss /= batchSize;
-//             // Add this batch's loss to the total loss
-//             // libtorch
-//             optimizer.zero_grad();
-//             auto prediction = net->forward(batch.data);
-//             auto libtorch_loss = torch::nn::functional::cross_entropy(prediction, batch.target);
-//             libtorch_loss.backward();
-//             optimizer.step();
-
-//             total_loss_gpu += loss;
-//             total_loss_libtorch += libtorch_loss.item<float>();
-//             ++total_batches;
-//         }
-
-//         std::cout << "========= Epoch " << epoch << " =========" << std::endl;
-//         std::cout << "Avg. GPU loss:     " << total_loss_gpu / total_batches << std::endl;
-//         std::cout << "Avg Libtorch loss: " << total_loss_libtorch / total_batches << std::endl;
-//         total_loss_gpu = 0.0f;      // Reset total loss
-//         total_loss_libtorch = 0.0f; // Reset total loss
-//         total_batches = 0;          // Reset total batches
-//     }
-
-//     cudaFree(d_input);
-//     cudaFree(d_output1);
-//     cudaFree(d_output2);
-//     cudaFree(d_output3);
-//     cudaFree(d_softmax_output);
-//     cudaFree(d_labels);
-//     cudaFree(d_loss);
-//     cudaFree(d_dZ3);
-//     cudaFree(d_dZ2);
-//     cudaFree(d_dZ1);
-//     cudaFree(derivative_Loss_Weights3);
-//     cudaFree(derivative_Loss_Biases3);
-//     cudaFree(derivative_Loss_Weights2);
-//     cudaFree(derivative_Loss_Biases2);
-//     cudaFree(derivative_Loss_Weights1);
-//     cudaFree(derivative_Loss_Biases1);
-// }
+    cudaFree(d_input);
+    cudaFree(d_labels);
+}
 
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);

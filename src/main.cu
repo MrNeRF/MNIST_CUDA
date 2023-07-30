@@ -82,7 +82,7 @@ int main(int argc, char** argv) {
             // Copy to GPU memory
             CHECK_CUDA_ERROR(cudaMemcpy(d_input, input, 784 * batchSize * sizeof(float), cudaMemcpyHostToDevice));
             // Copy loss from device to host memory
-            float loss = model.Forward(d_input, d_labels);
+            const float loss = model.Forward(d_input, d_labels);
             model.Backward();
             model.Update(0.01f);
 
