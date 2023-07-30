@@ -1,4 +1,5 @@
 #include "linear_layer.cuh"
+#include "mlp.cuh"
 #include "mlp_mnist.cuh"
 #include <cmath>
 #include <cstdlib>
@@ -30,7 +31,7 @@ struct SimpleNN : public NeuralNetwork {
         return (*_loss)(output, _d_labels);
     }
 
-    float* Backward() override {
+    const float* Backward() override {
         const float* d_dZ = nullptr;
         d_dZ = (*_loss).Backward(_fc3->GetOutputGPU(), _d_labels);
         d_dZ = _fc3->Backward(d_dZ, _fc2->GetOutputGPU());
@@ -310,7 +311,7 @@ TEST(MNIST_Test, BasicTest) {
             torch::data::transforms::Stack<>()),
         /*batch_size=*/batchSize);
 
-    for (size_t epoch = 1; epoch <= 50; ++epoch) {
+    for (size_t epoch = 1; epoch <= 10; ++epoch) {
         float total_loss_gpu = 0.0f;
         float total_loss_libtorch = 0.0f;
         int total_batches = 0;
@@ -339,14 +340,13 @@ TEST(MNIST_Test, BasicTest) {
             total_loss_libtorch += libtorch_loss_float;
             total_loss_gpu += gpu_loss;
             ++total_batches;
-            std::cout << "GPU loss:      " << gpu_loss << std::endl;
-            std::cout << "Libtorch loss: " << libtorch_loss_float << std::endl;
         }
-
+        const float avg_loss_gpu = total_loss_gpu / total_batches;
+        const float avg_loss_libtorch = total_loss_libtorch / total_batches;
+        EXPECT_NEAR(avg_loss_gpu, avg_loss_libtorch, 1e-4);
         std::cout << "========= Epoch " << epoch << " =========" << std::endl;
-        std::cout << "Avg. GPU loss:     " << total_loss_gpu / total_batches << std::endl;
-        std::cout << "Avg Libtorch loss: " << total_loss_libtorch / total_batches << std::endl;
-        break;
+        std::cout << "Avg. GPU loss:     " << avg_loss_gpu << std::endl;
+        std::cout << "Avg Libtorch loss: " << avg_loss_libtorch << std::endl;
     }
 
     cudaFree(d_input);

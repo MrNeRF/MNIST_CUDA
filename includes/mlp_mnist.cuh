@@ -29,14 +29,13 @@ struct MNIST_NN : public NeuralNetwork {
         return (*_loss)(output, d_labels);
     }
 
-    float* Backward() override {
+    const float* Backward() override {
         const float* d_dZ = nullptr;
         d_dZ = (*_loss).Backward(_fc3->GetOutputGPU(), _d_labels);
         d_dZ = _fc3->Backward(d_dZ, _fc2->GetOutputGPU());
         d_dZ = _fc2->Backward(d_dZ, _fc1->GetOutputGPU());
         d_dZ = _fc1->Backward(d_dZ, _d_input);
-        d_dZ = nullptr;
-        return nullptr;
+        return d_dZ;
     };
 
     // this right now has internally SGD optimizer

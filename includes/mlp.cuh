@@ -9,6 +9,72 @@
 #include <iostream>
 
 // This will be later reused. We know leave this as is
+struct DenseLayer {
+    int inputSize;
+    int outputSize;
+
+    float* weights; // GPU pointer
+    float* biases;  // GPU pointer
+
+    float* m_weights; // GPU pointer
+    float* v_weights; // GPU pointer
+    float* m_biases;  // GPU pointer
+    float* v_biases;  // GPU pointer
+    float beta1;
+    float beta2;
+    float epsilon;
+    int t;
+
+    DenseLayer(int inputSize, int outputSize)
+        : inputSize(inputSize),
+          outputSize(outputSize) {
+        // Allocate GPU memory for weights and biases
+        CHECK_CUDA_ERROR(cudaMalloc((void**)&weights, inputSize * outputSize * sizeof(float)));
+        CHECK_CUDA_ERROR(cudaMalloc((void**)&biases, outputSize * sizeof(float)));
+        CHECK_CUDA_ERROR(cudaMalloc((void**)&m_weights, inputSize * outputSize * sizeof(float)));
+        CHECK_CUDA_ERROR(cudaMalloc((void**)&v_weights, inputSize * outputSize * sizeof(float)));
+        CHECK_CUDA_ERROR(cudaMalloc((void**)&m_biases, outputSize * sizeof(float)));
+        CHECK_CUDA_ERROR(cudaMalloc((void**)&v_biases, outputSize * sizeof(float)));
+        beta1 = 0.9f;
+        beta2 = 0.999f;
+        epsilon = 1e-8f;
+        t = 0;
+    }
+
+    ~DenseLayer() {
+        // Deallocate GPU memory
+        CHECK_CUDA_ERROR(cudaFree(weights));
+        CHECK_CUDA_ERROR(cudaFree(biases));
+        CHECK_CUDA_ERROR(cudaFree(m_weights));
+        CHECK_CUDA_ERROR(cudaFree(v_weights));
+        CHECK_CUDA_ERROR(cudaFree(m_biases));
+        CHECK_CUDA_ERROR(cudaFree(v_biases));
+    }
+};
+
+void InitializeLayer_OLD(DenseLayer& layer) {
+    // Allocate memory on the host
+    float* h_weights = new float[layer.inputSize * layer.outputSize];
+    float* h_biases = new float[layer.outputSize];
+
+    // Initialize weights and biases on the host
+    float stddev = sqrtf(2.0f / layer.inputSize); // He initialization
+    for (int i = 0; i < layer.inputSize * layer.outputSize; i++) {
+        h_weights[i] = stddev * (rand() / (RAND_MAX + 1.0f));
+    }
+
+    for (int i = 0; i < layer.outputSize; i++) {
+        h_biases[i] = 0.0f;
+    }
+
+    // Copy initialized weights and biases to the device
+    CHECK_CUDA_ERROR(cudaMemcpy(layer.weights, h_weights, layer.inputSize * layer.outputSize * sizeof(float), cudaMemcpyHostToDevice));
+    CHECK_CUDA_ERROR(cudaMemcpy(layer.biases, h_biases, layer.outputSize * sizeof(float), cudaMemcpyHostToDevice));
+
+    // Free host memory
+    delete[] h_weights;
+    delete[] h_biases;
+}
 
 __global__ void InitCurandState(curandState* states, unsigned long seed) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;

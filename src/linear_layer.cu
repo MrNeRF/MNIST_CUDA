@@ -30,7 +30,7 @@ LinearLayer::LinearLayer(int batch_size, int input_size, int output_size) : _h_b
     CHECK_CUDA_ERROR(cudaMalloc((void**)&_d_weights, sizeof(float) * _h_input_size * _h_output_size));
     CHECK_CUDA_ERROR(cudaMalloc((void**)&_d_bias, sizeof(float) * _h_output_size));
     CHECK_CUDA_ERROR(cudaMalloc((void**)&_d_output, sizeof(float) * _h_output_size * _h_batch_size));
-    CHECK_CUDA_ERROR(cudaMalloc((void**)&_d_dZ, sizeof(float) * _h_output_size * _h_batch_size));
+    CHECK_CUDA_ERROR(cudaMalloc((void**)&_d_dZ, sizeof(float) * _h_input_size * _h_batch_size));
     CHECK_CUDA_ERROR(cudaMalloc((void**)&_d_dW, sizeof(float) * _h_input_size * _h_output_size));
     CHECK_CUDA_ERROR(cudaMalloc((void**)&_d_dB, sizeof(float) * _h_output_size));
     initWeightsAndBias(_d_weights, _d_bias, _h_input_size, _h_output_size);
@@ -90,10 +90,11 @@ const float* LinearLayer::Forward(const float* d_input, std::unique_ptr<Activati
 }
 
 const float* LinearLayer::Backward(const float* d_dZ, const float* d_activation_prev_layer) {
-    const int threadsPerBlock = 50;
+    const int threadsPerBlock = 256;
     const int blocksPerGrid = (_h_batch_size * _h_output_size * _h_input_size + threadsPerBlock - 1) / threadsPerBlock;
     // TODO: d_dZ comes from ouside. I think it should be inside.
     // _d_dz is here allocated but should be outside. This is the output. Not ideal but ok for now.
+
     BackpropagationKernel<<<blocksPerGrid, threadsPerBlock>>>(d_dZ,
                                                               d_activation_prev_layer,
                                                               _d_weights,
@@ -198,7 +199,7 @@ __global__ void BackpropagationKernel(const float* dZ_next,
                                       const int M,
                                       const int N,
                                       const int K) {
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    const int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
     // Calculate weights derivative
     if (idx < N * K) {
@@ -223,7 +224,7 @@ __global__ void BackpropagationKernel(const float* dZ_next,
         db[idx] = sum / M;
     }
 
-    if (dZ && idx < K) {
+    if (idx < K) {
         for (int m = 0; m < M; ++m) {
             float sum = 0.0f;
             for (int n = 0; n < N; ++n) {
@@ -231,7 +232,7 @@ __global__ void BackpropagationKernel(const float* dZ_next,
             }
 
             // Apply the derivative of ReLU activation function
-            sum = A_prev[m * K + idx] > 0 ? sum : 0;
+            sum = A_prev[m * K + idx] > 0 ? sum : 0.f;
 
             dZ[m * K + idx] = sum;
         }
