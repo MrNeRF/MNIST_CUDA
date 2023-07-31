@@ -51,7 +51,6 @@ This will create a folder named `libtorch` in the `external` directory of your p
 The MNIST data can be downloaded using the following command:
 
 ```bash
-mkdir data
 cd data
 wget http://yann.lecun.com/exdb/mnist/train-images-idx3-ubyte.gz
 wget http://yann.lecun.com/exdb/mnist/train-labels-idx1-ubyte.gz
