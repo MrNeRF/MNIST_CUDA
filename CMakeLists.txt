@@ -83,13 +83,12 @@ target_link_libraries(${PROJECT_NAME}
         ${TORCH_LIBRARIES}
         CUDA::cudart
         CUDA::curand
-        CUDA::cublas
 )
 
 # torch speedtest executable
 add_executable(torch_speedtest src/torch_speedtest.cu ${HEADERS})
 
-target_include_directories(torch_speedtest PRIVATE ${TORCH_INCLUDE_DIRS} ${PROJECT_SOURCE_DIR}/external/cutlass/include)
+target_include_directories(torch_speedtest PRIVATE ${TORCH_INCLUDE_DIRS})
 
 if (CMAKE_BUILD_TYPE STREQUAL "Release")
   target_compile_options(torch_speedtest PRIVATE -O3)
