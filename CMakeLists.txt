@@ -45,7 +45,7 @@ set(SOURCES
 )
 
 add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
-target_include_directories(${PROJECT_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/includes)
+target_include_directories(${PROJECT_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/includes external/cutlass/include)
 
 set_target_properties(${PROJECT_NAME} PROPERTIES
     CUDA_ARCHITECTURES 89
@@ -89,7 +89,7 @@ target_link_libraries(${PROJECT_NAME}
 # torch speedtest executable
 add_executable(torch_speedtest src/torch_speedtest.cu ${HEADERS})
 
-target_include_directories(torch_speedtest PRIVATE ${TORCH_INCLUDE_DIRS})
+target_include_directories(torch_speedtest PRIVATE ${TORCH_INCLUDE_DIRS} ${PROJECT_SOURCE_DIR}/external/cutlass/include)
 
 if (CMAKE_BUILD_TYPE STREQUAL "Release")
   target_compile_options(torch_speedtest PRIVATE -O3)
@@ -115,7 +115,7 @@ set(CUDA_SPEEDTEST_SOURCES
     src/validation.cu
 )
 add_executable(cuda_speedtest ${CUDA_SPEEDTEST_SOURCES} ${HEADERS})
-target_include_directories(cuda_speedtest PRIVATE ${PROJECT_SOURCE_DIR}/includes ${TORCH_INCLUDE_DIRS})
+target_include_directories(cuda_speedtest PRIVATE ${PROJECT_SOURCE_DIR}/includes ${TORCH_INCLUDE_DIRS} ${PROJECT_SOURCE_DIR}/external/cutlass/include)
 
 if (CMAKE_BUILD_TYPE STREQUAL "Release")
   target_compile_options(cuda_speedtest PRIVATE -O3)
@@ -131,7 +131,6 @@ target_link_libraries(cuda_speedtest
     PRIVATE
         CUDA::cudart
         CUDA::curand
-        CUDA::cublas
         ${TORCH_LIBRARIES}
 )
 
@@ -167,7 +166,7 @@ set(TEST_SOURCES
 # Add test executable
 add_executable(cuda_kernel_tests ${TEST_SOURCES} tests/cuda_kernel_tests.cu)
 
-target_include_directories(cuda_kernel_tests PRIVATE ${PROJECT_SOURCE_DIR}/includes ${TORCH_INCLUDE_DIRS})
+target_include_directories(cuda_kernel_tests PRIVATE ${PROJECT_SOURCE_DIR}/includes ${TORCH_INCLUDE_DIRS} ${PROJECT_SOURCE_DIR}/external/cutlass/include)
 set_target_properties(cuda_kernel_tests PROPERTIES
     CUDA_ARCHITECTURES 89
     CUDA_STANDARD 17 
@@ -192,7 +191,6 @@ target_link_libraries(cuda_kernel_tests
     PRIVATE
         CUDA::cudart
         CUDA::curand
-        CUDA::cublas
         gtest 
         gtest_main
         ${TORCH_LIBRARIES}

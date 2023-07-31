@@ -1,8 +1,8 @@
 #include "error_checking.cuh"
 #include "linear_layer.cuh"
 #include <cstdlib>
-#include <cublas_v2.h>
 #include <cuda_runtime.h>
+#include <cutlass/gemm/device/gemm.h>
 #include <vector>
 
 __global__ void AddBiasKernel(const float* __restrict__ biases,
@@ -39,8 +39,6 @@ LinearLayer::LinearLayer(int batch_size, int input_size, int output_size) : _h_b
     CHECK_CUDA_ERROR(cudaMalloc((void**)&_d_dZ, sizeof(float) * _h_input_size * _h_batch_size));
     CHECK_CUDA_ERROR(cudaMalloc((void**)&_d_dW, sizeof(float) * _h_input_size * _h_output_size));
     CHECK_CUDA_ERROR(cudaMalloc((void**)&_d_dB, sizeof(float) * _h_output_size));
-    CHECK_CUDA_ERROR(cudaStreamCreate(&_stream1));
-    CHECK_CUDA_ERROR(cudaStreamCreate(&_stream2));
     initWeightsAndBias(_d_weights, _d_bias, _h_input_size, _h_output_size);
 }
 
@@ -51,56 +49,40 @@ LinearLayer::~LinearLayer() {
     CHECK_CUDA_ERROR(cudaFree(_d_dZ));
     CHECK_CUDA_ERROR(cudaFree(_d_dW));
     CHECK_CUDA_ERROR(cudaFree(_d_dB));
-
-    // Clean up the streams
-    CHECK_CUDA_ERROR(cudaStreamDestroy(_stream1));
-    CHECK_CUDA_ERROR(cudaStreamDestroy(_stream2));
 }
 
 const float* LinearLayer::Forward(const float* d_input, std::unique_ptr<Activation> activation) {
-    cublasHandle_t handle;
-    cublasStatus_t status;
-
-    cudaMemset(_d_dW, 0, sizeof(float) * _h_input_size * _h_output_size);
-    cudaMemset(_d_dB, 0, sizeof(float) * _h_output_size);
-    status = cublasCreate(&handle);
-    if (status != CUBLAS_STATUS_SUCCESS) {
-        std::cerr << "Failed to create cuBLAS handle." << std::endl;
-        std::exit(EXIT_FAILURE);
-    }
-
-    CHECK_LAST_CUDA_ERROR();
+    CHECK_CUDA_ERROR(cudaMemset(_d_dW, 0, sizeof(float) * _h_input_size * _h_output_size));
+    CHECK_CUDA_ERROR(cudaMemset(_d_dB, 0, sizeof(float) * _h_output_size));
 
     const float alpha = 1.0f;
     const float beta = 0.0f;
 
-    // Make cublas use stream1
-    cublasSetStream(handle, _stream1);
-    CHECK_LAST_CUDA_ERROR();
+    using ColumMajor = cutlass::layout::ColumnMajor;
+    using RowMajor = cutlass::layout::RowMajor;
+    using CutlassGemm = cutlass::gemm::device::Gemm<float, RowMajor,
+                                                    float, ColumMajor,
+                                                    float, ColumMajor>;
 
-    // TODO: Implement fusion with cutlass for major speedup
-    cublasSgemm(handle, CUBLAS_OP_T, CUBLAS_OP_N,
-                _h_output_size, _h_batch_size, _h_input_size,
-                &alpha,
-                _d_weights, _h_input_size,
-                d_input, _h_input_size,
-                &beta,
-                _d_output, _h_output_size);
+    CutlassGemm::Arguments args({_h_output_size, _h_batch_size, _h_input_size},
+                                {_d_weights, _h_input_size},
+                                {d_input, _h_input_size},
+                                {_d_output, _h_output_size},
+                                {_d_output, _h_output_size},
+                                {alpha, beta});
 
-    CHECK_LAST_CUDA_ERROR();
-    // Destroy the handle
-    cublasDestroy(handle);
-    CHECK_LAST_CUDA_ERROR();
+    CutlassGemm gemm_op;
 
-    AddBiasKernel<<<(_h_batch_size * _h_output_size + 255) / 256, 256, 0, _stream2>>>(_d_bias,
-                                                                                      _h_batch_size,
-                                                                                      _h_output_size,
-                                                                                      _d_output);
+    cutlass::Status status = gemm_op(args);
+    if (status != cutlass::Status::kSuccess) {
+        std::cerr << "Failed to perform cutlass gemm" << std::endl;
+        std::exit(EXIT_FAILURE);
+    }
 
-    // Synchronize both streams
-    cudaStreamSynchronize(_stream1);
-    cudaStreamSynchronize(_stream2);
-
+    AddBiasKernel<<<(_h_batch_size * _h_output_size + 255) / 256, 256>>>(_d_bias,
+                                                                         _h_batch_size,
+                                                                         _h_output_size,
+                                                                         _d_output);
     CHECK_LAST_CUDA_ERROR();
 
     if (activation != nullptr) {

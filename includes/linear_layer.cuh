@@ -37,6 +37,4 @@ private:
     float* _d_dW;
     float* _d_dB;
     float* _d_dZ;
-    cudaStream_t _stream1;
-    cudaStream_t _stream2;
 };

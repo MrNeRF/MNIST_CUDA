@@ -13,6 +13,7 @@
 static const int num_epochs = 20;
 
 int main(int argc, char** argv) {
+
     int batchSize = 32;
     ///////////// HERE CUDA IMPL
     MNIST_NN model(batchSize);

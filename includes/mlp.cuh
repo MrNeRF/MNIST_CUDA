@@ -1,7 +1,6 @@
 #pragma once
 
 #include "error_checking.cuh"
-#include <cublas_v2.h>
 #include <cuda_device_runtime_api.h>
 #include <cuda_runtime.h>
 #include <curand.h>
