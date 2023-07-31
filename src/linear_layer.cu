@@ -20,7 +20,13 @@ __global__ void BackpropagationKernel(const float* dZ_next,
                                       const int N,
                                       const int K);
 
-__global__ void GradientDescentUpdateKernel(float* params, const float* gradients, const int size, const float learning_rate);
+__global__ void GradientDescentUpdateWeightsBiasesKernel(float* weights,
+                                                         const float* weight_gradients,
+                                                         const int weight_size,
+                                                         float* biases,
+                                                         const float* bias_gradients,
+                                                         const int bias_size,
+                                                         const float learning_rate);
 
 void initWeightsAndBias(float* d_weights, float* d_bias, int input_size, int output_size);
 
@@ -111,10 +117,13 @@ const float* LinearLayer::Backward(const float* d_dZ, const float* d_activation_
 void LinearLayer::Update(float learning_rate) {
     const int threadsPerBlock = 256;
     const int blocksPerGridWeights = (_h_output_size * _h_input_size + threadsPerBlock - 1) / threadsPerBlock;
-    GradientDescentUpdateKernel<<<blocksPerGridWeights, threadsPerBlock>>>(_d_weights, _d_dW, _h_input_size * _h_output_size, learning_rate);
-    CHECK_LAST_CUDA_ERROR();
-    const int blocksPerGridBias = (_h_output_size + threadsPerBlock - 1) / threadsPerBlock;
-    GradientDescentUpdateKernel<<<blocksPerGridBias, threadsPerBlock>>>(_d_bias, _d_dB, _h_output_size, learning_rate);
+    GradientDescentUpdateWeightsBiasesKernel<<<blocksPerGridWeights, threadsPerBlock>>>(_d_weights,
+                                                                                        _d_dW,
+                                                                                        _h_input_size * _h_output_size,
+                                                                                        _d_bias,
+                                                                                        _d_dB,
+                                                                                        _h_output_size,
+                                                                                        learning_rate);
     CHECK_LAST_CUDA_ERROR();
 }
 
@@ -239,9 +248,18 @@ __global__ void BackpropagationKernel(const float* dZ_next,
     }
 }
 
-__global__ void GradientDescentUpdateKernel(float* params, const float* gradients, const int size, const float learning_rate) {
+__global__ void GradientDescentUpdateWeightsBiasesKernel(float* weights,
+                                                         const float* weight_gradients,
+                                                         const int weight_size,
+                                                         float* biases,
+                                                         const float* bias_gradients,
+                                                         const int bias_size,
+                                                         const float learning_rate) {
     const int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < size) {
-        params[idx] -= learning_rate * gradients[idx];
+    if (idx < weight_size) {
+        weights[idx] -= learning_rate * weight_gradients[idx];
+    }
+    if (idx < bias_size) {
+        biases[idx] -= learning_rate * bias_gradients[idx];
     }
 }
