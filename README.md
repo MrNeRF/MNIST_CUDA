@@ -7,7 +7,7 @@ In its tests it uses the torch C++ API to assure correct implementation. It achi
 Attention: This not yet in a clean version, but it is working. It is not optimized at all. 
 Tested with NVIDIA RTX 4090.
 
-Right now, running torch_speedtest vs cuda_speedtest the runtime is 16.01 vs 8.561 on my hardware.
+Right now, running torch_speedtest vs cuda_speedtest the runtime is 16.01 sec vs 8.561 sec on my hardware.
 https://twitter.com/janusch_patas/status/1686016066537840641?s=20
 The naive CUDA implementation is already twice as fast.
 
@@ -34,7 +34,7 @@ cd MNIST_CUDA
 Download the libtorch library using the following command:
 
 ```bash
-weg https://download.pytorch.org/libtorch/test/cu118/libtorch-cxx11-abi-shared-with-deps-latest.zip  
+wget https://download.pytorch.org/libtorch/test/cu118/libtorch-cxx11-abi-shared-with-deps-latest.zip  
 ```
 
 This will download a zip file named `libtorch-shared-with-deps-latest.zip`. To extract this zip file, use the command:

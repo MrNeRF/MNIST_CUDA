@@ -52,14 +52,19 @@ LinearLayer::~LinearLayer() {
 }
 
 const float* LinearLayer::Forward(const float* d_input, std::unique_ptr<Activation> activation) {
+    // Clear the gradients
     CHECK_CUDA_ERROR(cudaMemset(_d_dW, 0, sizeof(float) * _h_input_size * _h_output_size));
     CHECK_CUDA_ERROR(cudaMemset(_d_dB, 0, sizeof(float) * _h_output_size));
 
+    // Set alpha and beta values for CutlassGemm
     const float alpha = 1.0f;
     const float beta = 0.0f;
 
+    // Define the matrix layouts for CutlassGemm
     using ColumMajor = cutlass::layout::ColumnMajor;
     using RowMajor = cutlass::layout::RowMajor;
+
+    // Define the CutlassGemm operation
     using CutlassGemm = cutlass::gemm::device::Gemm<float, RowMajor,
                                                     float, ColumMajor,
                                                     float, ColumMajor>;
@@ -81,24 +86,29 @@ const float* LinearLayer::Forward(const float* d_input, std::unique_ptr<Activati
                                 {_d_output, _h_output_size},
                                 {alpha, beta});
 
+    // Perform the CutlassGemm operation
     CutlassGemm gemm_op;
-
     cutlass::Status status = gemm_op(args);
+
+    // Check if the operation was successful
     if (status != cutlass::Status::kSuccess) {
         std::cerr << "Failed to perform cutlass gemm" << std::endl;
         std::exit(EXIT_FAILURE);
     }
 
+    // Add the bias to the output
     AddBiasKernel<<<(_h_batch_size * _h_output_size + 255) / 256, 256>>>(_d_bias,
                                                                          _h_batch_size,
                                                                          _h_output_size,
                                                                          _d_output);
     CHECK_LAST_CUDA_ERROR();
 
+    // Apply the activation function if provided
     if (activation != nullptr) {
         (*activation)(_h_batch_size, _h_output_size, _d_output);
     }
 
+    // Return the output
     return _d_output;
 }
 
