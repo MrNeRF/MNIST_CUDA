@@ -5,26 +5,26 @@
 #include <cuda_runtime.h>
 #include <vector>
 
-__global__ void AddBiasKernel(const float* biases,
+__global__ void AddBiasKernel(const float* __restrict__ biases,
                               const int rows,
                               const int cols,
-                              float* output);
+                              float* __restrict__ output);
 
-__global__ void BackpropagationKernel(const float* dZ_next,
-                                      const float* A_prev,
-                                      const float* W,
-                                      float* dW,
-                                      float* db,
-                                      float* dZ,
+__global__ void BackpropagationKernel(const float* __restrict__ dZ_next,
+                                      const float* __restrict__ A_prev,
+                                      const float* __restrict__ W,
+                                      float* __restrict__ dW,
+                                      float* __restrict__ db,
+                                      float* __restrict__ dZ,
                                       const int M,
                                       const int N,
                                       const int K);
 
-__global__ void GradientDescentUpdateWeightsBiasesKernel(float* weights,
-                                                         const float* weight_gradients,
+__global__ void GradientDescentUpdateWeightsBiasesKernel(float* __restrict__ weights,
+                                                         const float* __restrict__ weight_gradients,
                                                          const int weight_size,
-                                                         float* biases,
-                                                         const float* bias_gradients,
+                                                         float* __restrict__ biases,
+                                                         const float* __restrict__ bias_gradients,
                                                          const int bias_size,
                                                          const float learning_rate);
 
@@ -200,10 +200,10 @@ std::vector<float> LinearLayer::GetBiasGradientsCPU() const {
     return dB;
 }
 
-__global__ void AddBiasKernel(const float* biases,
+__global__ void AddBiasKernel(const float* __restrict__ biases,
                               const int rows,
                               const int cols,
-                              float* output) {
+                              float* __restrict__ output) {
     const int idx = blockIdx.x * blockDim.x + threadIdx.x;
     const int row = idx / cols;
     const int col = idx % cols;
@@ -214,12 +214,12 @@ __global__ void AddBiasKernel(const float* biases,
 }
 
 // M = batchSize, N = outputSize, K = inputSize
-__global__ void BackpropagationKernel(const float* dZ_next,
-                                      const float* A_prev,
-                                      const float* W,
-                                      float* dW,
-                                      float* db,
-                                      float* dZ,
+__global__ void BackpropagationKernel(const float* __restrict__ dZ_next,
+                                      const float* __restrict__ A_prev,
+                                      const float* __restrict__ W,
+                                      float* __restrict__ dW,
+                                      float* __restrict__ db,
+                                      float* __restrict__ dZ,
                                       const int M,
                                       const int N,
                                       const int K) {
@@ -231,6 +231,8 @@ __global__ void BackpropagationKernel(const float* dZ_next,
         const int k = idx % K;
 
         float sum = 0.0f;
+
+#pragma unroll
         for (int m = 0; m < M; ++m) {
             sum += dZ_next[m * N + n] * A_prev[m * K + k];
         }
@@ -240,8 +242,9 @@ __global__ void BackpropagationKernel(const float* dZ_next,
     // Calculate biases derivative
     if (idx < N) {
         float sum = 0.0f;
-        // iterate over all batches and sum the gradients
-        // db dimensions are 1 x K
+// iterate over all batches and sum the gradients
+// db dimensions are 1 x K
+#pragma unroll
         for (int m = 0; m < M; ++m) {
             sum += dZ_next[m * N + idx];
         }
@@ -249,6 +252,7 @@ __global__ void BackpropagationKernel(const float* dZ_next,
     }
 
     if (idx < K) {
+#pragma unroll
         for (int m = 0; m < M; ++m) {
             float sum = 0.0f;
             for (int n = 0; n < N; ++n) {
@@ -263,11 +267,11 @@ __global__ void BackpropagationKernel(const float* dZ_next,
     }
 }
 
-__global__ void GradientDescentUpdateWeightsBiasesKernel(float* weights,
-                                                         const float* weight_gradients,
+__global__ void GradientDescentUpdateWeightsBiasesKernel(float* __restrict__ weights,
+                                                         const float* __restrict__ weight_gradients,
                                                          const int weight_size,
-                                                         float* biases,
-                                                         const float* bias_gradients,
+                                                         float* __restrict__ biases,
+                                                         const float* __restrict__ bias_gradients,
                                                          const int bias_size,
                                                          const float learning_rate) {
     const int idx = blockIdx.x * blockDim.x + threadIdx.x;

@@ -2,23 +2,23 @@
 #include "loss.cuh"
 #include <cuda_runtime.h>
 
-__global__ void ComputeDzLastLayerKernel(const float* log_predictions,
-                                         const int* labels,
-                                         float* dZ,
+__global__ void ComputeDzLastLayerKernel(const float* __restrict__ log_predictions,
+                                         const int* __restrict__ labels,
+                                         float* __restrict__ dZ,
                                          const int numClasses,
                                          const int batchSize);
 
-__global__ void CrossEntropyLossKernel(const float* predictions,
-                                       const int* labels,
-                                       float* loss,
+__global__ void CrossEntropyLossKernel(const float* __restrict__ predictions,
+                                       const int* __restrict__ labels,
+                                       float* __restrict__ loss,
                                        const int numClasses,
                                        const int batchSize);
 
-__global__ void LogSoftmaxCrossEntropyLossKernel(const float* values,
-                                                 float* predictions,
-                                                 const int* labels,
-                                                 float* loss,
-                                                 float* dZ,
+__global__ void LogSoftmaxCrossEntropyLossKernel(const float* __restrict__ values,
+                                                 float* __restrict__ predictions,
+                                                 const int* __restrict__ labels,
+                                                 float* __restrict__ loss,
+                                                 float* __restrict__ dZ,
                                                  const int output_size,
                                                  const int batch_size);
 
@@ -59,9 +59,9 @@ float* CrossEntropyLoss::Backward() {
     return _d_dZ;
 }
 
-__global__ void CrossEntropyLossKernel(const float* predictions,
-                                       const int* labels,
-                                       float* loss,
+__global__ void CrossEntropyLossKernel(const float* __restrict__ predictions,
+                                       const int* __restrict__ labels,
+                                       float* __restrict__ loss,
                                        const int numClasses,
                                        const int batch_size) {
     const int idx = threadIdx.x + blockIdx.x * blockDim.x;
@@ -73,11 +73,11 @@ __global__ void CrossEntropyLossKernel(const float* predictions,
     atomicAdd(loss, -prediction);
 }
 
-__global__ void LogSoftmaxCrossEntropyLossKernel(const float* values,
-                                                 float* predictions,
-                                                 const int* labels,
-                                                 float* loss,
-                                                 float* dZ,
+__global__ void LogSoftmaxCrossEntropyLossKernel(const float* __restrict__ values,
+                                                 float* __restrict__ predictions,
+                                                 const int* __restrict__ labels,
+                                                 float* __restrict__ loss,
+                                                 float* __restrict__ dZ,
                                                  const int output_size,
                                                  const int batch_size) {
     const int idx = threadIdx.x + blockIdx.x * blockDim.x;
@@ -85,11 +85,14 @@ __global__ void LogSoftmaxCrossEntropyLossKernel(const float* values,
         return;
 
     float maxInput = -INFINITY;
+
+#pragma unroll
     for (int j = 0; j < output_size; ++j) {
         maxInput = fmaxf(maxInput, values[idx * output_size + j]);
     }
 
     float sum = 0.0f;
+#pragma unroll
     for (int j = 0; j < output_size; ++j) {
         sum += expf(values[idx * output_size + j] - maxInput);
     }
@@ -97,6 +100,7 @@ __global__ void LogSoftmaxCrossEntropyLossKernel(const float* values,
     const int label = labels[idx];
     float log_softmax = 0.0f;
 
+#pragma unroll
     for (int j = 0; j < output_size; ++j) {
         float softmax = expf(values[idx * output_size + j] - maxInput) / sum;
         predictions[idx * output_size + j] = logf(softmax + 1e-8f);
@@ -111,7 +115,11 @@ __global__ void LogSoftmaxCrossEntropyLossKernel(const float* values,
     atomicAdd(loss, -log_softmax);
 }
 
-__global__ void ComputeDzLastLayerKernel(const float* log_predictions, const int* labels, float* dZ, const int numClasses, const int batchSize) {
+__global__ void ComputeDzLastLayerKernel(const float* __restrict__ log_predictions,
+                                         const int* __restrict__ labels,
+                                         float* __restrict__ dZ,
+                                         const int numClasses,
+                                         const int batchSize) {
     const int idx = threadIdx.x + blockIdx.x * blockDim.x;
     if (idx >= batchSize)
         return;
