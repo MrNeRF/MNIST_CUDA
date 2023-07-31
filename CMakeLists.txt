@@ -8,11 +8,6 @@ set(LIBTORCH_DIR "${PROJ_ROOT_DIR}/external/libtorch")
 # Set CMAKE_PREFIX_PATH
 set(CMAKE_PREFIX_PATH ${LIBTORCH_DIR})
 
-# Add the _GLIBCXX_USE_CXX11_ABI=0 flag
-# This is needed to avoid linker errors with libtorch
-# https://stackoverflow.com/questions/62693218/how-to-solve-gtest-and-libtorch-linkage-conflict
-# add_compile_definitions(_GLIBCXX_USE_CXX11_ABI=0)
-
 project(mnist_cuda LANGUAGES CUDA CXX)
 
 include(ProcessorCount)
@@ -90,6 +85,56 @@ target_link_libraries(${PROJECT_NAME}
         CUDA::curand
         CUDA::cublas
 )
+
+# torch speedtest executable
+add_executable(torch_speedtest src/torch_speedtest.cu ${HEADERS})
+
+target_include_directories(torch_speedtest PRIVATE ${TORCH_INCLUDE_DIRS})
+
+if (CMAKE_BUILD_TYPE STREQUAL "Release")
+  target_compile_options(torch_speedtest PRIVATE -O3)
+endif()
+set_target_properties(torch_speedtest PROPERTIES
+    CUDA_ARCHITECTURES 89
+    CUDA_STANDARD 17 
+    CUDA_STANDARD_REQUIRED ON
+    CXX_STANDARD 17 
+    CXX_STANDARD_REQUIRED ON
+)
+target_link_libraries(torch_speedtest
+    PRIVATE
+        ${TORCH_LIBRARIES}
+)
+
+# cuda speedtest executable
+set(CUDA_SPEEDTEST_SOURCES
+    src/cuda_speedtest.cu
+    src/linear_layer.cu
+    src/activation.cu
+    src/loss.cu
+    src/validation.cu
+)
+add_executable(cuda_speedtest ${CUDA_SPEEDTEST_SOURCES} ${HEADERS})
+target_include_directories(cuda_speedtest PRIVATE ${PROJECT_SOURCE_DIR}/includes ${TORCH_INCLUDE_DIRS})
+
+if (CMAKE_BUILD_TYPE STREQUAL "Release")
+  target_compile_options(cuda_speedtest PRIVATE -O3)
+endif()
+set_target_properties(cuda_speedtest PROPERTIES
+    CUDA_ARCHITECTURES 89
+    CUDA_STANDARD 17 
+    CUDA_STANDARD_REQUIRED ON
+    CXX_STANDARD 17 
+    CXX_STANDARD_REQUIRED ON
+)
+target_link_libraries(cuda_speedtest
+    PRIVATE
+        CUDA::cudart
+        CUDA::curand
+        CUDA::cublas
+        ${TORCH_LIBRARIES}
+)
+
 
 # Add Google Test manually
 include(FetchContent)
