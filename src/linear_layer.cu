@@ -68,6 +68,15 @@ const float* LinearLayer::Forward(const float* d_input, std::unique_ptr<Activati
     const float alpha = 1.0f;
     const float beta = 0.0f;
 
+    cudaStream_t stream1, stream2;
+    cudaStreamCreate(&stream1);
+    cudaStreamCreate(&stream2);
+
+    // Make cublas use stream1
+    cublasSetStream(handle, stream1);
+    CHECK_LAST_CUDA_ERROR();
+
+    // TODO: Implement fusion with cutlass for major speedup
     cublasSgemm(handle, CUBLAS_OP_T, CUBLAS_OP_N,
                 _h_output_size, _h_batch_size, _h_input_size,
                 &alpha,
@@ -81,10 +90,18 @@ const float* LinearLayer::Forward(const float* d_input, std::unique_ptr<Activati
     cublasDestroy(handle);
     CHECK_LAST_CUDA_ERROR();
 
-    AddBiasKernel<<<(_h_batch_size * _h_output_size + 255) / 256, 256>>>(_d_bias,
-                                                                         _h_batch_size,
-                                                                         _h_output_size,
-                                                                         _d_output);
+    AddBiasKernel<<<(_h_batch_size * _h_output_size + 255) / 256, 256, 0, stream2>>>(_d_bias,
+                                                                                     _h_batch_size,
+                                                                                     _h_output_size,
+                                                                                     _d_output);
+
+    // Synchronize both streams
+    cudaStreamSynchronize(stream1);
+    cudaStreamSynchronize(stream2);
+
+    // Clean up the streams
+    cudaStreamDestroy(stream1);
+    cudaStreamDestroy(stream2);
 
     CHECK_LAST_CUDA_ERROR();
 
