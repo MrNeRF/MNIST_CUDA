@@ -31,13 +31,13 @@ struct SimpleNN : public NeuralNetwork {
         const float* output = nullptr;
         output = _fc1->Forward(d_input, std::make_unique<ReLU>());
         output = _fc2->Forward(output, std::make_unique<ReLU>());
-        output = _fc3->Forward(output, std::make_unique<LogSoftMax>());
+        output = _fc3->Forward(output, nullptr);
         return (*_loss)(output, _d_labels);
     }
 
     const float* Backward() override {
         const float* d_dZ = nullptr;
-        d_dZ = (*_loss).Backward(_fc3->GetOutputGPU(), _d_labels);
+        d_dZ = (*_loss).Backward(_d_labels);
         d_dZ = _fc3->Backward(d_dZ, _fc2->GetOutputGPU());
         d_dZ = _fc2->Backward(d_dZ, _fc1->GetOutputGPU());
         d_dZ = _fc1->Backward(d_dZ, _d_input);
@@ -168,10 +168,9 @@ TEST(ForwardPassLossLibtorch, BasicTest) {
     auto [pred1, pred2, pred3] = torchNet->forward(inputTensor);
 
     // Because Simple_NN outputs logsoftmax, we need to convert it
-    auto pred3_logsoftmax = torch::log_softmax(pred3, 1);
     auto torchnet_Layer1_output = pred1.data_ptr<float>();
     auto torchnet_Layer2_output = pred2.data_ptr<float>();
-    auto torchnet_Layer3_output = pred3_logsoftmax.data_ptr<float>();
+    auto torchnet_Layer3_output = pred3.data_ptr<float>();
 
     auto myNN_Layer1_output = myNN._fc1->GetOutputCPU();
     auto myNN_Layer2_output = myNN._fc2->GetOutputCPU();
