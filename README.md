@@ -7,12 +7,17 @@ In its tests it uses the torch C++ API to assure correct implementation. It achi
 Attention: This not yet in a clean version, but it is working. It is not optimized at all. 
 Tested with NVIDIA RTX 4090.
 
+Right now, running torch_speedtest vs cuda_speedtest the runtime is 16.01 vs 8.561 on my hardware.
+https://twitter.com/janusch_patas/status/1686016066537840641?s=20
+The naive CUDA implementation is already twice as fast.
+
 ## Dependencies
 
 - CMake (version >= 3.22)
 - CUDA Toolkit (version >= 12.0) 
 - PyTorch (libtorch)
 - Google Test (release-1.10.0)
+- Cutlass (version >= 3.1)
 
 It might also work with a lower version of CUDA, but that is the only one I have tested.
 CMake version might be also considerable lower. Just test it.

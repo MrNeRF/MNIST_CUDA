@@ -64,6 +64,16 @@ const float* LinearLayer::Forward(const float* d_input, std::unique_ptr<Activati
                                                     float, ColumMajor,
                                                     float, ColumMajor>;
 
+    // This version add also the bias. However, no significant difference in performance.
+    // Since it makes due to numerical issues harder to comapare the results with torch,
+    // I will keep the version without bias for now.
+    // CutlassGemm::Arguments args({_h_output_size, _h_batch_size, _h_input_size},
+    //                             {_d_weights, _h_input_size},
+    //                             {d_input, _h_input_size},
+    //                             {_d_bias, 0},
+    //                             {_d_output, _h_output_size},
+    //                             {alpha}, 1);
+    // https://github.com/NVIDIA/cutlass/blob/main/examples/12_gemm_bias_relu/gemm_bias_relu.cu
     CutlassGemm::Arguments args({_h_output_size, _h_batch_size, _h_input_size},
                                 {_d_weights, _h_input_size},
                                 {d_input, _h_input_size},
