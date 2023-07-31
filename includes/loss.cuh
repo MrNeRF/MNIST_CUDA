@@ -3,7 +3,7 @@
 struct Loss {
     virtual ~Loss() = default;
     virtual float operator()(const float* d_predictions, const int* d_labels) = 0;
-    virtual float* Backward(const int* d_labels) = 0;
+    virtual float* Backward() = 0;
 };
 
 class CrossEntropyLoss : public Loss {
@@ -12,7 +12,7 @@ public:
     ~CrossEntropyLoss();
 
     float operator()(const float* d_values, const int* d_labels) override;
-    float* Backward(const int* d_labels) override;
+    float* Backward() override;
 
 private:
     float* _d_dZ;

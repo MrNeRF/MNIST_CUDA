@@ -34,7 +34,7 @@ struct MNIST_NN : public NeuralNetwork {
 
     const float* Backward() override {
         const float* d_dZ = nullptr;
-        d_dZ = (*_loss).Backward(_d_labels);
+        d_dZ = (*_loss).Backward();
         d_dZ = _fc3->Backward(d_dZ, _fc2->GetOutputGPU());
         d_dZ = _fc2->Backward(d_dZ, _fc1->GetOutputGPU());
         d_dZ = _fc1->Backward(d_dZ, _d_input);
