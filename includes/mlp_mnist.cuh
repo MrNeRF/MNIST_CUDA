@@ -19,6 +19,9 @@ struct MNIST_NN : public NeuralNetwork {
         CHECK_CUDA_ERROR(cudaMalloc((void**)&_d_predictions, _batch_size * sizeof(int))); // Allocate device memory for predictions
     }
 
+    ~MNIST_NN() {
+        CHECK_CUDA_ERROR(cudaFree(_d_predictions));
+    }
     float Forward(const float* d_input, const int* d_labels) override {
         _d_input = d_input;
         _d_labels = d_labels;
