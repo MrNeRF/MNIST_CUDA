@@ -2,6 +2,7 @@
 
 #include "layer.cuh"
 #include <cstdint>
+#include <cuda_runtime.h>
 #include <vector>
 
 class LinearLayer : public Layer {
@@ -36,4 +37,6 @@ private:
     float* _d_dW;
     float* _d_dB;
     float* _d_dZ;
+    cudaStream_t _stream1;
+    cudaStream_t _stream2;
 };

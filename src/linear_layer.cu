@@ -39,6 +39,8 @@ LinearLayer::LinearLayer(int batch_size, int input_size, int output_size) : _h_b
     CHECK_CUDA_ERROR(cudaMalloc((void**)&_d_dZ, sizeof(float) * _h_input_size * _h_batch_size));
     CHECK_CUDA_ERROR(cudaMalloc((void**)&_d_dW, sizeof(float) * _h_input_size * _h_output_size));
     CHECK_CUDA_ERROR(cudaMalloc((void**)&_d_dB, sizeof(float) * _h_output_size));
+    CHECK_CUDA_ERROR(cudaStreamCreate(&_stream1));
+    CHECK_CUDA_ERROR(cudaStreamCreate(&_stream2));
     initWeightsAndBias(_d_weights, _d_bias, _h_input_size, _h_output_size);
 }
 
@@ -49,6 +51,10 @@ LinearLayer::~LinearLayer() {
     CHECK_CUDA_ERROR(cudaFree(_d_dZ));
     CHECK_CUDA_ERROR(cudaFree(_d_dW));
     CHECK_CUDA_ERROR(cudaFree(_d_dB));
+
+    // Clean up the streams
+    CHECK_CUDA_ERROR(cudaStreamDestroy(_stream1));
+    CHECK_CUDA_ERROR(cudaStreamDestroy(_stream2));
 }
 
 const float* LinearLayer::Forward(const float* d_input, std::unique_ptr<Activation> activation) {
@@ -68,12 +74,8 @@ const float* LinearLayer::Forward(const float* d_input, std::unique_ptr<Activati
     const float alpha = 1.0f;
     const float beta = 0.0f;
 
-    cudaStream_t stream1, stream2;
-    cudaStreamCreate(&stream1);
-    cudaStreamCreate(&stream2);
-
     // Make cublas use stream1
-    cublasSetStream(handle, stream1);
+    cublasSetStream(handle, _stream1);
     CHECK_LAST_CUDA_ERROR();
 
     // TODO: Implement fusion with cutlass for major speedup
@@ -90,18 +92,14 @@ const float* LinearLayer::Forward(const float* d_input, std::unique_ptr<Activati
     cublasDestroy(handle);
     CHECK_LAST_CUDA_ERROR();
 
-    AddBiasKernel<<<(_h_batch_size * _h_output_size + 255) / 256, 256, 0, stream2>>>(_d_bias,
-                                                                                     _h_batch_size,
-                                                                                     _h_output_size,
-                                                                                     _d_output);
+    AddBiasKernel<<<(_h_batch_size * _h_output_size + 255) / 256, 256, 0, _stream2>>>(_d_bias,
+                                                                                      _h_batch_size,
+                                                                                      _h_output_size,
+                                                                                      _d_output);
 
     // Synchronize both streams
-    cudaStreamSynchronize(stream1);
-    cudaStreamSynchronize(stream2);
-
-    // Clean up the streams
-    cudaStreamDestroy(stream1);
-    cudaStreamDestroy(stream2);
+    cudaStreamSynchronize(_stream1);
+    cudaStreamSynchronize(_stream2);
 
     CHECK_LAST_CUDA_ERROR();
 
