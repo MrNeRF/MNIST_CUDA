@@ -129,16 +129,16 @@ const float* LinearLayer::Backward(const float* d_dZ, const float* d_activation_
     return _d_dZ;
 }
 
-void LinearLayer::Update(float learning_rate) {
+void LinearLayer::Update(float learning_rate, cudaStream_t stream) {
     const int threadsPerBlock = 256;
     const int blocksPerGridWeights = (_h_output_size * _h_input_size + threadsPerBlock - 1) / threadsPerBlock;
-    GradientDescentUpdateWeightsBiasesKernel<<<blocksPerGridWeights, threadsPerBlock>>>(_d_weights,
-                                                                                        _d_dW,
-                                                                                        _h_input_size * _h_output_size,
-                                                                                        _d_bias,
-                                                                                        _d_dB,
-                                                                                        _h_output_size,
-                                                                                        learning_rate);
+    GradientDescentUpdateWeightsBiasesKernel<<<blocksPerGridWeights, threadsPerBlock, 0, stream>>>(_d_weights,
+                                                                                                   _d_dW,
+                                                                                                   _h_input_size * _h_output_size,
+                                                                                                   _d_bias,
+                                                                                                   _d_dB,
+                                                                                                   _h_output_size,
+                                                                                                   learning_rate);
     CHECK_LAST_CUDA_ERROR();
 }
 

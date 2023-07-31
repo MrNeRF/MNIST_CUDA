@@ -25,7 +25,7 @@ public:
 
     const float* Forward(const float* d_input, std::unique_ptr<Activation> activation) override;
     const float* Backward(const float* d_dZ, const float* d_activation_prev_layer) override;
-    void Update(float learning_rate) override;
+    void Update(float learning_rate, cudaStream_t stream) override;
 
 private:
     int _h_batch_size;

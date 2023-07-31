@@ -18,11 +18,17 @@ struct SimpleNN : public NeuralNetwork {
         _fc3 = std::make_unique<LinearLayer>(_batch_size, 3, 2);
         _loss = std::make_unique<CrossEntropyLoss>(2, _batch_size);
 
+        cudaStreamCreate(&_stream1);
+        cudaStreamCreate(&_stream2);
+        cudaStreamCreate(&_stream3);
         CHECK_CUDA_ERROR(cudaMalloc((void**)&_d_predictions, _batch_size * sizeof(int))); // Allocate device memory for predictions
     }
 
     ~SimpleNN() {
         CHECK_CUDA_ERROR(cudaFree(_d_predictions));
+        cudaStreamDestroy(_stream1);
+        cudaStreamDestroy(_stream2);
+        cudaStreamDestroy(_stream3);
     }
 
     float Forward(const float* d_input, const int* d_labels) override {
@@ -47,9 +53,9 @@ struct SimpleNN : public NeuralNetwork {
     // this right now has internally SGD optimizer
     // Need to refactor later on
     void Update(const float learning_rate) override {
-        _fc3->Update(learning_rate);
-        _fc2->Update(learning_rate);
-        _fc1->Update(learning_rate);
+        _fc3->Update(learning_rate, _stream3);
+        _fc2->Update(learning_rate, _stream2);
+        _fc1->Update(learning_rate, _stream1);
     };
 
     float Predict(const float* d_input, const int* d_labels) override {
@@ -70,6 +76,7 @@ private:
     const float* _d_input; // temporary variable, no ownership
     const int* _d_labels;  // temporary variable, no ownership
     int* _d_predictions;
+    cudaStream_t _stream1, _stream2, _stream3;
 };
 
 // libtorch implementation

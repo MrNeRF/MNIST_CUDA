@@ -58,7 +58,7 @@ int main(int argc, char** argv) {
     CHECK_CUDA_ERROR(cudaMalloc((void**)&d_validationLabels, batchSize * sizeof(int))); // Allocate device memory for labels
     int validation_labels[batchSize];
 
-    static const int num_epochs = 100;
+    static const int num_epochs = 20;
 
     auto rng = std::default_random_engine{};
 
