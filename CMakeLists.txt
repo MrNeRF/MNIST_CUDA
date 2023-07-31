@@ -11,7 +11,7 @@ set(CMAKE_PREFIX_PATH ${LIBTORCH_DIR})
 # Add the _GLIBCXX_USE_CXX11_ABI=0 flag
 # This is needed to avoid linker errors with libtorch
 # https://stackoverflow.com/questions/62693218/how-to-solve-gtest-and-libtorch-linkage-conflict
-add_compile_definitions(_GLIBCXX_USE_CXX11_ABI=0)
+# add_compile_definitions(_GLIBCXX_USE_CXX11_ABI=0)
 
 project(mnist_cuda LANGUAGES CUDA CXX)
 

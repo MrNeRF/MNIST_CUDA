@@ -4,10 +4,28 @@
 #include <iomanip>
 #include <iostream>
 #include <random>
+#include <torch/torch.h>
 
 int main(int argc, char** argv) {
     if (argc != 2) {
         std::cout << "Usage: ./load_mnist <path_to_mnist_data>" << std::endl;
+        return -1;
+    }
+
+    // Testing libtorch
+    if (torch::cuda::is_available()) {
+        std::cout << "CUDA is available! Creating tensor on GPU." << std::endl;
+
+        // Create a tensor on the CPU
+        torch::Tensor cpu_tensor = torch::rand({1, 3});
+
+        // Move the tensor to the GPU
+        torch::Tensor gpu_tensor = cpu_tensor.to(torch::kCUDA);
+
+        std::cout << "CPU tensor: " << cpu_tensor << std::endl;
+        std::cout << "GPU tensor: " << gpu_tensor << std::endl;
+    } else {
+        std::cout << "CUDA is not available." << std::endl;
         return -1;
     }
 
